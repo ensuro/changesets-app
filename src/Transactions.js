@@ -2,7 +2,6 @@
 import * as React from "react";
 import { useSafeAppsSDK } from "@safe-global/safe-apps-react-sdk";
 import SafeApiKit from "@safe-global/api-kit";
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from "@mui/material";
 import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
@@ -12,6 +11,8 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Button from "@mui/material/Button";
 
+import Safe from "@safe-global/protocol-kit";
+
 import { SafeMultisigTransactionResponse } from "@safe-global/safe-core-sdk-types";
 
 function TransactionTable() {
@@ -20,6 +21,21 @@ function TransactionTable() {
 
   const signTransaction = async (safeTxHash: string) => {
     console.log("Signing transaction %s", safeTxHash);
+    if (!window.ethereum) {
+      console.error("No browser wallet available!");
+      return;
+    }
+
+    const protocolKit = await Safe.init({
+      provider: window.ethereum,
+      safeAddress: safe.safeAddress,
+    });
+    const signature = await protocolKit.signHash(safeTxHash);
+
+    const apiKit = new SafeApiKit({ chainId: BigInt(safe.chainId) });
+    const result = await apiKit.confirmTransaction(safeTxHash, signature.data);
+
+    console.log("Transaction signed: %s", result);
   };
 
   React.useEffect(() => {
