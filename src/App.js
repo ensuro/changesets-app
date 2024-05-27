@@ -18,7 +18,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 
-import { useSafeAppsSDK } from "@safe-global/safe-apps-react-sdk";
+import { useSafe } from "./safe-ui";
 
 import { mainListItems } from "./listItems";
 import SafeSummary from "./SafeSummary";
@@ -85,7 +85,7 @@ const defaultTheme = createTheme({ palette: { mode: "dark" } });
 
 export default function App() {
   const [open, setOpen] = React.useState(false);
-  const { safe } = useSafeAppsSDK();
+  const safe = useSafe();
   const [pendingTransactions, setPendingTransactions] = React.useState([]);
   const toggleDrawer = () => {
     setOpen(!open);

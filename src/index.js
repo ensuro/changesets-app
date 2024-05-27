@@ -4,13 +4,17 @@ import "./index.css";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
 
-import SafeProvider from "@safe-global/safe-apps-react-sdk";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+import SafeProvider from "./safe-ui";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <SafeProvider>
-      <App />
+      <QueryClientProvider client={new QueryClient()}>
+        <App />
+      </QueryClientProvider>
     </SafeProvider>
   </React.StrictMode>
 );

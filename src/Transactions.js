@@ -1,7 +1,5 @@
 /* global BigInt */
 import * as React from "react";
-import { useSafeAppsSDK } from "@safe-global/safe-apps-react-sdk";
-import SafeApiKit from "@safe-global/api-kit";
 import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
@@ -11,47 +9,34 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Button from "@mui/material/Button";
 
-import Safe from "@safe-global/protocol-kit";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { SafeMultisigTransactionResponse } from "@safe-global/safe-core-sdk-types";
+import { KEY_TRANSACTIONS, getTransactions, postConfirmation } from "./safe-api";
+import { useSafe } from "./safe-ui";
 
 function TransactionTable() {
-  const { sdk, safe, connected } = useSafeAppsSDK();
-  const [transactions, setTransactions] = React.useState([]);
+  const queryClient = useQueryClient();
 
-  const signTransaction = async (safeTxHash: string) => {
-    console.log("Signing transaction %s", safeTxHash);
-    if (!window.ethereum) {
-      console.error("No browser wallet available!");
-      return;
-    }
+  const safe = useSafe();
 
-    const protocolKit = await Safe.init({
-      provider: window.ethereum,
-      safeAddress: safe.safeAddress,
-    });
-    const signature = await protocolKit.signHash(safeTxHash);
+  const transactions = useQuery({ queryKey: [KEY_TRANSACTIONS], queryFn: async () => getTransactions(safe) });
 
-    const apiKit = new SafeApiKit({ chainId: BigInt(safe.chainId) });
-    const result = await apiKit.confirmTransaction(safeTxHash, signature.data);
+  const confirmTransaction = useMutation({
+    mutationFn: async (safeTxHash) => postConfirmation(safe, safeTxHash),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [KEY_TRANSACTIONS] });
+    },
+    onSettled: (data, error) => {
+      console.log("onSettled", data, error);
+    },
+  });
 
-    console.log("Transaction signed: %s", result);
-  };
-
-  React.useEffect(() => {
-    const fetchTransactions = async () => {
-      console.log("chainId=%s, safeAddress=%s", safe.chainId, safe.safeAddress);
-      const apiKit = new SafeApiKit({ chainId: BigInt(safe.chainId) });
-      const txs = await apiKit.getPendingTransactions(safe.safeAddress);
-      setTransactions(txs.results);
-    };
-
-    if (safe.safeAddress && connected) fetchTransactions();
-  }, [sdk, safe.safeAddress, safe.chainId, connected]);
+  if (transactions.isPending) return <div>Loading...</div>;
+  if (transactions.isError) return <div>Error: {transactions.error.message}</div>;
 
   return (
     <div>
-      {transactions.map((transaction: SafeMultisigTransactionResponse) => (
+      {transactions.data?.map((transaction) => (
         <Accordion key={transaction.safeTxHash}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="panel1a-content" id="panel1a-header">
             <Typography>To: {transaction.to}</Typography>
@@ -62,10 +47,14 @@ function TransactionTable() {
                 <Typography>
                   Value: {transaction.value} <br />
                   Data: {transaction.data} <br />
-                  Confirmations: {`${transaction.confirmations.length}/${transaction.confirmationsRequired}`} <br />
+                  Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
                   Modified: {transaction.modified}
                 </Typography>
-                <Button variant="contained" color="primary" onClick={() => signTransaction(transaction.safeTxHash)}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => confirmTransaction.mutate(transaction.safeTxHash)}
+                >
                   Sign Transaction
                 </Button>
               </CardContent>
