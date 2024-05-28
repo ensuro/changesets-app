@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { KEY_TRANSACTIONS, getTransactions, postConfirmation } from "./safe-api";
 import { useSafe } from "./safe-ui";
 import TransactionCard from "./TransactionCard";
+import { Stack } from "@mui/material";
 
 function TransactionTable() {
   const queryClient = useQueryClient();
@@ -28,7 +29,7 @@ function TransactionTable() {
   if (transactions.isError) return <div>Error: {transactions.error.message}</div>;
 
   return (
-    <div>
+    <Stack spacing={2}>
       {transactions.data?.map((transaction) => (
         <TransactionCard
           transaction={transaction}
@@ -36,7 +37,7 @@ function TransactionTable() {
           key={transaction.safeTxHash}
         />
       ))}
-    </div>
+    </Stack>
   );
 }
 

@@ -4,6 +4,7 @@ import Safe from "@safe-global/protocol-kit";
 
 export const KEY_TRANSACTIONS = "transactions";
 export const KEY_TRANSACTION_DETAILS = "transaction-details";
+export const KEY_ADDRESS_BOOK = "address-book";
 
 export async function getTransactions(safe) {
   const apiKit = new SafeApiKit({ chainId: BigInt(safe.chainId) });
@@ -15,6 +16,11 @@ export async function getTransactionDetails(safeTxHash) {
   const response = await fetch(`/${safeTxHash}.json`);
   const data = await response.json();
   return data;
+}
+
+export async function getAddressBook() {
+  const response = await fetch("/address-book.json");
+  return response.json();
 }
 
 export async function postConfirmation(safe, safeTxHash) {

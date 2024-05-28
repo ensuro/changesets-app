@@ -7,14 +7,26 @@ import AccordionDetails from "@mui/material/AccordionDetails";
 import Typography from "@mui/material/Typography";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Button from "@mui/material/Button";
-import { KEY_TRANSACTION_DETAILS, getTransactionDetails } from "./safe-api";
+import Grid from "@mui/material/Grid";
+import { Paper, Stack } from "@mui/material";
+
 import { useQuery } from "@tanstack/react-query";
-import CardActions from "@mui/material/CardActions";
+
+import { KEY_TRANSACTION_DETAILS, KEY_ADDRESS_BOOK, getAddressBook, getTransactionDetails } from "./safe-api";
+import Address from "./Address";
 
 function TransactionCard({ transaction, onConfirm }) {
   const txDetailsResponse = useQuery({
-    queryKey: [KEY_TRANSACTION_DETAILS],
+    queryKey: [KEY_TRANSACTION_DETAILS, transaction.safeTxHash],
     queryFn: async () => getTransactionDetails(transaction.safeTxHash),
+  });
+
+  const addressBookResponse = useQuery({
+    queryKey: [KEY_ADDRESS_BOOK],
+    queryFn: getAddressBook,
+    // Fetch only once, no need to refresh
+    staleTime: Infinity,
+    cacheTime: Infinity,
   });
 
   if (txDetailsResponse.isPending) return <div>Loading...</div>;
@@ -22,27 +34,64 @@ function TransactionCard({ transaction, onConfirm }) {
 
   const txDetails = txDetailsResponse.data;
 
+  const signEnabled = transaction.confirmations.length < transaction.confirmationsRequired;
+
   return (
     <Accordion>
       <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="panel1a-content" id="panel1a-header">
-        <Typography>{txDetails.description}</Typography>
+        <Typography>
+          {txDetails.description} ({transaction.safeTxHash})
+        </Typography>
       </AccordionSummary>
       <AccordionDetails>
         <Card>
           <CardContent>
-            <Typography>
-              ID: {transaction.safeTxHash} <br />
-              Nonce: {transaction.nonce} <br />
-              Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
-              Modified: {transaction.modified}
-            </Typography>
-            <pre>{txDetails.original_yaml}</pre>
+            <Grid container spacing={2}>
+              <Grid item xs={8}>
+                <Paper style={{ height: "100%" }}>
+                  <Typography>
+                    Nonce: {transaction.nonce} <br />
+                    Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
+                    Modified: {transaction.modified}
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={4}>
+                <Paper style={{ height: "100%" }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <Typography variant="h6">Signers</Typography>
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Stack direction="column" spacing={1}>
+                        {transaction.confirmations.length === 0 && <Typography>No signatures yet</Typography>}
+                        {transaction.confirmations.map((signer) => (
+                          <Address
+                            key={signer.owner}
+                            address={signer.owner}
+                            displayName={addressBookResponse.data?.[signer.owner]}
+                          />
+                        ))}
+                      </Stack>
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Stack direction="column" spacing={1} justifyContent={"flex-end"}>
+                        <Button variant="contained" color="primary" onClick={onConfirm} disabled={!signEnabled}>
+                          Approve
+                        </Button>
+                      </Stack>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </Grid>
+              <Grid item xs={12}>
+                <Paper>
+                  <Typography variant="h6">Transaction Details</Typography>
+                  <pre>{txDetails.original_yaml}</pre>
+                </Paper>
+              </Grid>
+            </Grid>
           </CardContent>
-          <CardActions style={{ justifyContent: "flex-end" }}>
-            <Button variant="contained" color="primary" onClick={onConfirm}>
-              Sign Transaction
-            </Button>
-          </CardActions>
         </Card>
       </AccordionDetails>
     </Accordion>
