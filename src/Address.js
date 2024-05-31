@@ -22,7 +22,7 @@ function Address({ displayName = null, address }) {
         label={displayName || shortAddress(address)}
         aria-owns={popOpen ? "mouse-over-popover" : undefined}
         aria-haspopup="true"
-        onMouseEnter={handlePopoverOpen}
+        onClick={handlePopoverOpen}
       />
       <Popover
         id="mouse-over-popover"

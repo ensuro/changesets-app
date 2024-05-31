@@ -66,7 +66,7 @@ function TransactionCard({ transaction, onConfirm }) {
                     <Grid item xs={12}>
                       <Typography variant="h6">Signers</Typography>
                     </Grid>
-                    <Grid item xs={12}>
+                    <Grid item xs={12} sx={{ margin: "0 10%" }}>
                       <Stack direction="column" spacing={1}>
                         {transaction.confirmations.length === 0 && <Typography>No signatures yet</Typography>}
                         {transaction.confirmations.map((signer) => (

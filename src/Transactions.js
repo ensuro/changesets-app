@@ -1,11 +1,11 @@
 import * as React from "react";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Stack } from "@mui/material";
 
 import { KEY_TRANSACTIONS, getTransactions, postConfirmation } from "./safe-api";
 import { useSafe } from "./safe-ui";
 import TransactionCard from "./TransactionCard";
-import { Stack } from "@mui/material";
 
 function TransactionTable() {
   const queryClient = useQueryClient();
@@ -20,7 +20,7 @@ function TransactionTable() {
       queryClient.invalidateQueries({ queryKey: [KEY_TRANSACTIONS] });
     },
     onSettled: (data, error) => {
-      console.log("onSettled", data, error);
+      if (error) console.error("confirmTransaction failed", error);
     },
   });
 
