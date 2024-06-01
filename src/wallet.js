@@ -4,6 +4,8 @@ import { ethers } from "ethers";
 export const WalletContext = createContext({
   chainId: null,
   connected: false,
+  curAccount: null,
+  setCurAccount: (account) => {},
   accounts: [],
   signer: null,
   provider: null,
@@ -39,6 +41,7 @@ const WalletProvider = ({ children }) => {
   const [accounts, setAccounts] = useState([]);
   const [signer, setSigner] = useState(null);
   const [provider, setProvider] = useState(null);
+  const [curAccount, setCurAccount] = useState(null);
 
   useEffect(() => {
     if (!window.ethereum) return;
@@ -73,16 +76,20 @@ const WalletProvider = ({ children }) => {
 
   useEffect(() => {
     if (!window.ethereum) return;
-    if (accounts.length === 0) return;
+    if (!curAccount) return;
 
     const provider = new ethers.BrowserProvider(window.ethereum);
     setProvider(provider);
 
-    provider.getSigner().then((signer) => setSigner(signer));
+    provider.getSigner(curAccount).then((signer) => setSigner(signer));
+  }, [curAccount]);
+
+  useEffect(() => {
+    setCurAccount(accounts[0]);
   }, [accounts]);
 
   return (
-    <WalletContext.Provider value={{ chainId, connected, accounts, signer, provider }}>
+    <WalletContext.Provider value={{ chainId, connected, accounts, signer, provider, curAccount, setCurAccount }}>
       {children}
     </WalletContext.Provider>
   );

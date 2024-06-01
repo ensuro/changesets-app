@@ -35,7 +35,7 @@ function TransactionCard({ transaction, onConfirm }) {
     cacheTime: Infinity,
   });
 
-  const { accounts } = useWallet();
+  const { curAccount } = useWallet();
   const { owners } = useSafe();
 
   if (txDetailsResponse.isPending) return <div>Loading...</div>;
@@ -43,10 +43,10 @@ function TransactionCard({ transaction, onConfirm }) {
 
   const txDetails = txDetailsResponse.data;
 
-  const isOwner = owners.map((o) => o?.toLowerCase()).includes(accounts[0]);
+  const isOwner = owners.map((o) => o?.toLowerCase()).includes(curAccount);
   const alreadySigned = transaction.confirmations
     .map((c) => c.owner?.toLowerCase())
-    .includes(accounts[0]?.toLowerCase());
+    .includes(curAccount?.toLowerCase());
 
   const signEnabled = !alreadySigned && isOwner;
 

@@ -15,8 +15,6 @@ import Paper from "@mui/material/Paper";
 import Link from "@mui/material/Link";
 import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import NoAccountsOutlinedIcon from "@mui/icons-material/NoAccountsOutlined";
-import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 
 import { useSafe } from "./safe-ui";
 
@@ -24,6 +22,8 @@ import { mainListItems } from "./listItems";
 import SafeSummary from "./SafeSummary";
 import Transactions from "./Transactions";
 import { connectWallet, useWallet } from "./wallet";
+import { shortAddress } from "./utils";
+import AccountsMenu from "./AccountsMenu";
 
 function Copyright(props) {
   return (
@@ -117,9 +117,7 @@ export default function App() {
             <Typography component="h1" variant="h6" color="inherit" noWrap sx={{ flexGrow: 1 }}>
               Transactions
             </Typography>
-            <IconButton color="inherit" onClick={connectWallet}>
-              {accounts.length === 0 ? <NoAccountsOutlinedIcon /> : <AccountCircleOutlinedIcon />}
-            </IconButton>
+            <AccountsMenu />
           </Toolbar>
         </AppBar>
         <Drawer variant="permanent" open={open}>
