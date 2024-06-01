@@ -3,7 +3,7 @@ import Button from "@mui/material/Button";
 import { useWallet, switchNetwork, connectWallet } from "./wallet";
 import { useSafe } from "./safe-ui";
 
-const WalletActionButton = ({ onClick, disabled, children }) => {
+const WalletActionButton = ({ onClick, disabled, style = null, children }) => {
   const wallet = useWallet();
   const safe = useSafe();
 
@@ -21,7 +21,7 @@ const WalletActionButton = ({ onClick, disabled, children }) => {
   }
 
   return (
-    <Button variant="contained" onClick={handleClick} disabled={buttonDisabled}>
+    <Button variant="contained" onClick={handleClick} disabled={buttonDisabled} style={style}>
       {content}
     </Button>
   );

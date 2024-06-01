@@ -1,24 +1,32 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import "./index.css";
-import App from "./App";
-import reportWebVitals from "./reportWebVitals";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { ThemeProvider } from "@mui/material";
+
+import App from "./App";
+import reportWebVitals from "./reportWebVitals";
 import SafeProvider from "./safe-ui";
+import SafeThemeProvider from "./theme/SafeThemeProvider";
 import WalletProvider from "./wallet";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <SafeProvider>
-      <WalletProvider>
-        <QueryClientProvider client={new QueryClient()}>
-          <App />
-        </QueryClientProvider>
-      </WalletProvider>
-    </SafeProvider>
+    <SafeThemeProvider mode="dark">
+      {(safeTheme) => (
+        <ThemeProvider theme={safeTheme}>
+          <SafeProvider>
+            <WalletProvider>
+              <QueryClientProvider client={new QueryClient()}>
+                <App />
+              </QueryClientProvider>
+            </WalletProvider>
+          </SafeProvider>
+        </ThemeProvider>
+      )}
+    </SafeThemeProvider>
   </React.StrictMode>
 );
 

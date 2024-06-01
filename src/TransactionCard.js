@@ -51,62 +51,60 @@ function TransactionCard({ transaction, onConfirm }) {
   const signEnabled = !alreadySigned && isOwner;
 
   return (
-    <Accordion>
+    <Accordion elevation={2}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="panel1a-content" id="panel1a-header">
         <Typography>
           {txDetails.description} ({transaction.safeTxHash})
         </Typography>
       </AccordionSummary>
       <AccordionDetails>
-        <Card>
-          <CardContent>
-            <Grid container spacing={2}>
-              <Grid item xs={8}>
-                <Paper style={{ height: "100%" }}>
-                  <Typography>
-                    Nonce: {transaction.nonce} <br />
-                    Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
-                    Modified: {transaction.modified}
-                  </Typography>
-                </Paper>
+        <Grid container spacing={2}>
+          <Grid item xs={8}>
+            <Paper style={{ height: "100%" }} variant="outlined">
+              <Typography>
+                Nonce: {transaction.nonce} <br />
+                Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
+                Modified: {transaction.modified}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid item container xs={4}>
+            <Paper style={{ height: "100%", width: "100%" }} variant="outlined">
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Typography variant="h6">Signers</Typography>
+                </Grid>
+                <Grid item xs={12} sx={{ margin: "0 10%" }}>
+                  <Stack direction="column" spacing={1}>
+                    {transaction.confirmations.length === 0 && <Typography>No signatures yet</Typography>}
+                    {transaction.confirmations.map((signer) => (
+                      <Address
+                        key={signer.owner}
+                        address={signer.owner}
+                        displayName={addressBookResponse.data?.[signer.owner]}
+                      />
+                    ))}
+                  </Stack>
+                </Grid>
+                <Grid item container xs={12} justifyContent="center">
+                  <WalletActionButton
+                    onClick={onConfirm}
+                    disabled={!signEnabled}
+                    style={{ marginBottom: "10px", width: "90%" }}
+                  >
+                    {isOwner ? "Approve" : "Switch to an owner account"}
+                  </WalletActionButton>
+                </Grid>
               </Grid>
-              <Grid item xs={4}>
-                <Paper style={{ height: "100%" }}>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12}>
-                      <Typography variant="h6">Signers</Typography>
-                    </Grid>
-                    <Grid item xs={12} sx={{ margin: "0 10%" }}>
-                      <Stack direction="column" spacing={1}>
-                        {transaction.confirmations.length === 0 && <Typography>No signatures yet</Typography>}
-                        {transaction.confirmations.map((signer) => (
-                          <Address
-                            key={signer.owner}
-                            address={signer.owner}
-                            displayName={addressBookResponse.data?.[signer.owner]}
-                          />
-                        ))}
-                      </Stack>
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Stack direction="column" spacing={1} justifyContent={"flex-end"}>
-                        <WalletActionButton onClick={onConfirm} disabled={!signEnabled}>
-                          {isOwner ? "Approve" : "Switch to an owner account"}
-                        </WalletActionButton>
-                      </Stack>
-                    </Grid>
-                  </Grid>
-                </Paper>
-              </Grid>
-              <Grid item xs={12}>
-                <Paper>
-                  <Typography variant="h6">Transaction Details</Typography>
-                  <pre>{txDetails.original_yaml}</pre>
-                </Paper>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
+            </Paper>
+          </Grid>
+          <Grid item xs={12}>
+            <Paper variant="outlined">
+              <Typography variant="h6">Transaction Details</Typography>
+              <pre>{txDetails.original_yaml}</pre>
+            </Paper>
+          </Grid>
+        </Grid>
       </AccordionDetails>
     </Accordion>
   );
