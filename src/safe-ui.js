@@ -20,7 +20,7 @@ const SafeContext = createContext(
           ? parseInt(process.env.REACT_APP_STANDALONE_CHAIN_ID)
           : 11155111,
         threshold: 1,
-        owners: [],
+        owners: ["0x4eB328c10A601A5EA68461097C2A82E80b7f46a1", "0x4c56A8EFdd7aFd6A708641e3754801fE0538eb80"],
         isReadOnly: true,
       }
     : {

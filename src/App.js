@@ -9,20 +9,21 @@ import List from "@mui/material/List";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
-import Badge from "@mui/material/Badge";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
 import Paper from "@mui/material/Paper";
 import Link from "@mui/material/Link";
 import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import NotificationsIcon from "@mui/icons-material/Notifications";
+import NoAccountsOutlinedIcon from "@mui/icons-material/NoAccountsOutlined";
+import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 
 import { useSafe } from "./safe-ui";
 
 import { mainListItems } from "./listItems";
 import SafeSummary from "./SafeSummary";
 import Transactions from "./Transactions";
+import { connectWallet, useWallet } from "./wallet";
 
 function Copyright(props) {
   return (
@@ -86,7 +87,7 @@ const defaultTheme = createTheme({ palette: { mode: "dark" } });
 export default function App() {
   const [open, setOpen] = React.useState(false);
   const safe = useSafe();
-  const [pendingTransactions, setPendingTransactions] = React.useState([]);
+  const { accounts } = useWallet();
   const toggleDrawer = () => {
     setOpen(!open);
   };
@@ -116,10 +117,8 @@ export default function App() {
             <Typography component="h1" variant="h6" color="inherit" noWrap sx={{ flexGrow: 1 }}>
               Transactions
             </Typography>
-            <IconButton color="inherit">
-              <Badge badgeContent={pendingTransactions.length} color="secondary">
-                <NotificationsIcon />
-              </Badge>
+            <IconButton color="inherit" onClick={connectWallet}>
+              {accounts.length === 0 ? <NoAccountsOutlinedIcon /> : <AccountCircleOutlinedIcon />}
             </IconButton>
           </Toolbar>
         </AppBar>

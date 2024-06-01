@@ -24,8 +24,6 @@ export async function getAddressBook() {
 }
 
 export async function postConfirmation(safe, safeTxHash) {
-  // console.log(await window.ethereum.getSignerAddress());
-
   const protocolKit = await Safe.init({
     provider: window.ethereum,
     safeAddress: safe.safeAddress,

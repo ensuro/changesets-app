@@ -5,7 +5,6 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
-  Button,
   Card,
   CardContent,
   Grid,
@@ -18,6 +17,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import { KEY_TRANSACTION_DETAILS, KEY_ADDRESS_BOOK, getAddressBook, getTransactionDetails } from "./safe-api";
 import Address from "./Address";
+import { useWallet } from "./wallet";
+import { useSafe } from "./safe-ui";
+import WalletActionButton from "./WalletActionButton";
 
 function TransactionCard({ transaction, onConfirm }) {
   const txDetailsResponse = useQuery({
@@ -33,12 +35,20 @@ function TransactionCard({ transaction, onConfirm }) {
     cacheTime: Infinity,
   });
 
+  const { accounts } = useWallet();
+  const { owners } = useSafe();
+
   if (txDetailsResponse.isPending) return <div>Loading...</div>;
   if (txDetailsResponse.isError) return <div>Error: {txDetailsResponse.error.message}</div>;
 
   const txDetails = txDetailsResponse.data;
 
-  const signEnabled = transaction.confirmations.length < transaction.confirmationsRequired;
+  const isOwner = owners.map((o) => o?.toLowerCase()).includes(accounts[0]);
+  const alreadySigned = transaction.confirmations
+    .map((c) => c.owner?.toLowerCase())
+    .includes(accounts[0]?.toLowerCase());
+
+  const signEnabled = !alreadySigned && isOwner;
 
   return (
     <Accordion>
@@ -80,9 +90,9 @@ function TransactionCard({ transaction, onConfirm }) {
                     </Grid>
                     <Grid item xs={12}>
                       <Stack direction="column" spacing={1} justifyContent={"flex-end"}>
-                        <Button variant="contained" color="primary" onClick={onConfirm} disabled={!signEnabled}>
-                          Approve
-                        </Button>
+                        <WalletActionButton onClick={onConfirm} disabled={!signEnabled}>
+                          {isOwner ? "Approve" : "Switch to an owner account"}
+                        </WalletActionButton>
                       </Stack>
                     </Grid>
                   </Grid>

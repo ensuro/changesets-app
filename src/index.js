@@ -7,14 +7,17 @@ import reportWebVitals from "./reportWebVitals";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import SafeProvider from "./safe-ui";
+import WalletProvider from "./wallet";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <SafeProvider>
-      <QueryClientProvider client={new QueryClient()}>
-        <App />
-      </QueryClientProvider>
+      <WalletProvider>
+        <QueryClientProvider client={new QueryClient()}>
+          <App />
+        </QueryClientProvider>
+      </WalletProvider>
     </SafeProvider>
   </React.StrictMode>
 );
