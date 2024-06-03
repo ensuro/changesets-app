@@ -2,6 +2,8 @@
 import SafeApiKit from "@safe-global/api-kit";
 import Safe from "@safe-global/protocol-kit";
 
+import { CHANGESET_URL_PREFIX, ADDRESSBOOK_URL } from "./config";
+
 export const KEY_TRANSACTIONS = "transactions";
 export const KEY_TRANSACTION_DETAILS = "transaction-details";
 export const KEY_ADDRESS_BOOK = "address-book";
@@ -13,13 +15,13 @@ export async function getTransactions(safe) {
 }
 
 export async function getTransactionDetails(safeTxHash) {
-  const response = await fetch(`/${safeTxHash}.json`);
+  const response = await fetch(`${CHANGESET_URL_PREFIX}/${safeTxHash}.json`);
   const data = await response.json();
   return data;
 }
 
 export async function getAddressBook() {
-  const response = await fetch("/address-book.json");
+  const response = await fetch(ADDRESSBOOK_URL);
   return response.json();
 }
 
