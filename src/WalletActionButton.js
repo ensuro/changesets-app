@@ -10,7 +10,7 @@ const WalletActionButton = ({ onClick, disabled, style = null, children }) => {
   let handleClick = onClick;
   let content = children;
   let buttonDisabled = disabled;
-  if (wallet.chainId != safe.chainId) {
+  if (wallet.chainId !== safe.chainId) {
     handleClick = () => switchNetwork(safe.chainId);
     content = "Switch Network";
     buttonDisabled = false;
