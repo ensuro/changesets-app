@@ -13,7 +13,6 @@ function TransactionsPage() {
 
   return (
     <Grid container spacing={3}>
-      {/* Recent Deposits */}
       <Grid item xs={12}>
         <Paper
           sx={{
@@ -25,7 +24,6 @@ function TransactionsPage() {
           <SafeSummary address={safe.safeAddress} />
         </Paper>
       </Grid>
-      {/* Transactions */}
       <Grid item xs={12}>
         <Paper sx={{ p: 2, display: "flex", flexDirection: "column" }}>
           <Transactions />

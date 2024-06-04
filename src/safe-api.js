@@ -5,6 +5,8 @@ import Safe from "@safe-global/protocol-kit";
 import { CHANGESET_URL_PREFIX, ADDRESSBOOK_URL } from "./config";
 
 export const KEY_TRANSACTIONS = "transactions";
+export const KEY_DELEGATES = "delegates";
+
 export const KEY_TRANSACTION_DETAILS = "transaction-details";
 export const KEY_ADDRESS_BOOK = "address-book";
 
@@ -12,6 +14,26 @@ export async function getTransactions(safe) {
   const apiKit = new SafeApiKit({ chainId: BigInt(safe.chainId) });
   const txs = await apiKit.getPendingTransactions(safe.safeAddress);
   return txs.results.sort((a, b) => a.nonce - b.nonce);
+}
+
+export async function getDelegates(safe) {
+  const apiKit = new SafeApiKit({ chainId: BigInt(safe.chainId) });
+  const response = await apiKit.getSafeDelegates({
+    safeAddress: safe.safeAddress,
+  });
+  return response.results;
+}
+
+export async function addDelegate(safe, delegate, signer) {
+  const config = {
+    safeAddress: safe.safeAddress,
+    delegateAddress: delegate.address,
+    delegatorAddress: signer.address,
+    signer: signer,
+    label: delegate.name,
+  };
+  const apiKit = new SafeApiKit({ chainId: BigInt(safe.chainId) });
+  return apiKit.addSafeDelegate(config);
 }
 
 export async function getTransactionDetails(safeTxHash) {
