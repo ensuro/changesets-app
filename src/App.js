@@ -1,26 +1,34 @@
-import * as React from "react";
-import { styled } from "@mui/material/styles";
-import MuiDrawer from "@mui/material/Drawer";
-import Box from "@mui/material/Box";
-import MuiAppBar from "@mui/material/AppBar";
-import Toolbar from "@mui/material/Toolbar";
-import List from "@mui/material/List";
-import Typography from "@mui/material/Typography";
-import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
-import Container from "@mui/material/Container";
-import Grid from "@mui/material/Grid";
-import Paper from "@mui/material/Paper";
-import Link from "@mui/material/Link";
 import MenuIcon from "@mui/icons-material/Menu";
+import MuiAppBar from "@mui/material/AppBar";
+import Box from "@mui/material/Box";
+import Container from "@mui/material/Container";
+import Divider from "@mui/material/Divider";
+import MuiDrawer from "@mui/material/Drawer";
+import IconButton from "@mui/material/IconButton";
+import Link from "@mui/material/Link";
+import List from "@mui/material/List";
+import Toolbar from "@mui/material/Toolbar";
+import Typography from "@mui/material/Typography";
+import { styled } from "@mui/material/styles";
+import * as React from "react";
+
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+
+import AssignmentIcon from "@mui/icons-material/Assignment";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ParaglidingIcon from "@mui/icons-material/Paragliding";
 
-import { useSafe } from "./safe-ui";
-
-import { mainListItems } from "./listItems";
-import SafeSummary from "./SafeSummary";
-import Transactions from "./Transactions";
 import AccountsMenu from "./AccountsMenu";
+
+import TransactionsPage from "./TransactionsPage";
+import DelegatesPage from "./DelegatesPage";
+
+const navigation = [
+  { name: "Transactions", icon: <AssignmentIcon />, content: <TransactionsPage /> },
+  { name: "Delegates", icon: <ParaglidingIcon />, content: <DelegatesPage /> },
+];
 
 function Copyright(props) {
   return (
@@ -81,7 +89,7 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== "open" 
 
 export default function App() {
   const [open, setOpen] = React.useState(false);
-  const safe = useSafe();
+  const [page, setPage] = React.useState(0);
   const toggleDrawer = () => {
     setOpen(!open);
   };
@@ -127,7 +135,12 @@ export default function App() {
         </Toolbar>
         <Divider />
         <List component="nav">
-          {mainListItems}
+          {navigation.map((item, index) => (
+            <ListItemButton key={index} onClick={() => setPage(index)}>
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.name} />
+            </ListItemButton>
+          ))}
           <Divider sx={{ my: 1 }} />
         </List>
       </Drawer>
@@ -143,26 +156,7 @@ export default function App() {
       >
         <Toolbar />
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-          <Grid container spacing={3}>
-            {/* Recent Deposits */}
-            <Grid item xs={12}>
-              <Paper
-                sx={{
-                  p: 2,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <SafeSummary address={safe.safeAddress} />
-              </Paper>
-            </Grid>
-            {/* Transactions */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2, display: "flex", flexDirection: "column" }}>
-                <Transactions />
-              </Paper>
-            </Grid>
-          </Grid>
+          {navigation[page].content}
           <Copyright sx={{ pt: 4 }} />
         </Container>
       </Box>
