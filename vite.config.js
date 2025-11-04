@@ -8,9 +8,16 @@ export default defineConfig({
     loader: "jsx",
     include: /src\/.*\.(js|jsx)$/,
   },
+  resolve: {
+    alias: {
+      buffer: "buffer",
+    },
+  },
   optimizeDeps: {
+    include: ["buffer"],
     esbuildOptions: {
       loader: { ".js": "jsx", ".jsx": "jsx" },
+      define: { global: "globalThis" },
     },
   },
   server: {
