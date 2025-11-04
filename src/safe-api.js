@@ -6,7 +6,6 @@ import { CHANGESET_URL_PREFIX, ADDRESSBOOK_URL } from "./config";
 
 export const KEY_TRANSACTIONS = "transactions";
 export const KEY_DELEGATES = "delegates";
-
 export const KEY_TRANSACTION_DETAILS = "transaction-details";
 export const KEY_ADDRESS_BOOK = "address-book";
 
