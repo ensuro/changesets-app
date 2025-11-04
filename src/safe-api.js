@@ -1,4 +1,3 @@
-/* global BigInt */
 import SafeApiKit from "@safe-global/api-kit";
 import Safe from "@safe-global/protocol-kit";
 

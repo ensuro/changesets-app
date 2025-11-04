@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { ethers } from "ethers";
 
@@ -5,7 +6,7 @@ export const WalletContext = createContext({
   chainId: null,
   connected: false,
   curAccount: null,
-  setCurAccount: (account) => {},
+  setCurAccount: () => {},
   accounts: [],
   signer: null,
   provider: null,

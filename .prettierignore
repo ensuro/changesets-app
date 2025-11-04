@@ -1,0 +1,11 @@
+artifacts
+cache
+node_modules
+contracts/dependencies/
+
+src/assets/scss
+firebase.json
+**/firebase-hosting-merge.yml
+**/firebase-hosting-pull-request.yml
+
+*.json
