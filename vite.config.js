@@ -4,8 +4,14 @@ import react from "@vitejs/plugin-react-swc";
 export default defineConfig({
   plugins: [react()],
   esbuild: {
+    jsx: "automatic",
     loader: "jsx",
-    include: /src\/.*\.js$/,
+    include: /src\/.*\.(js|jsx)$/,
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      loader: { ".js": "jsx", ".jsx": "jsx" },
+    },
   },
   server: {
     host: true,
