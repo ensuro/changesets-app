@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { ethers } from "ethers";
 
@@ -5,7 +6,7 @@ export const WalletContext = createContext({
   chainId: null,
   connected: false,
   curAccount: null,
-  setCurAccount: (account) => {},
+  setCurAccount: () => {},
   accounts: [],
   signer: null,
   provider: null,
@@ -13,7 +14,6 @@ export const WalletContext = createContext({
 
 export const connectWallet = async () => {
   if (!window.ethereum) return;
-
   try {
     await window.ethereum.request({ method: "eth_requestAccounts" });
   } catch (error) {
@@ -23,7 +23,6 @@ export const connectWallet = async () => {
 
 export const switchNetwork = async (chainId) => {
   if (!window.ethereum) return;
-
   console.log("Switching network to ", ethers.toQuantity(chainId), typeof chainId);
   try {
     await window.ethereum.request({
@@ -45,43 +44,65 @@ const WalletProvider = ({ children }) => {
 
   useEffect(() => {
     if (!window.ethereum) return;
-    window.ethereum.on("chainChanged", (newChainId) => setChainId(parseInt(newChainId)));
-    window.ethereum.on("accountsChanged", (accounts) => setAccounts(accounts));
-    window.ethereum.on("connect", () => setConnected(true));
-    window.ethereum.on("disconnect", () => setConnected(false));
 
-    return () => window.ethereum.removeAllListeners();
+    const onChainChanged = (newChainId) => setChainId(Number(newChainId));
+    const onAccountsChanged = (accs) => setAccounts(accs);
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+
+    window.ethereum.on("chainChanged", onChainChanged);
+    window.ethereum.on("accountsChanged", onAccountsChanged);
+    window.ethereum.on("connect", onConnect);
+    window.ethereum.on("disconnect", onDisconnect);
+
+    return () => {
+      window.ethereum.removeListener?.("chainChanged", onChainChanged);
+      window.ethereum.removeListener?.("accountsChanged", onAccountsChanged);
+      window.ethereum.removeListener?.("connect", onConnect);
+      window.ethereum.removeListener?.("disconnect", onDisconnect);
+    };
   }, []);
 
   useEffect(() => {
     if (!window.ethereum) return;
     window.ethereum
-      .request({ method: "eth_accounts", params: [] })
-      .then((accounts) => setAccounts(accounts))
-      .catch((error) => {
-        console.error("Failed to get accounts: ", error);
-      });
+      .request({ method: "eth_accounts" })
+      .then((accs) => setAccounts(accs))
+      .catch((error) => console.error("Failed to get accounts: ", error));
   }, []);
 
   useEffect(() => {
-    if (!window.ethereum) return;
-    if (chainId) return;
-    window.ethereum.request({ method: "eth_chainId", params: [] }).then((chainId) => setChainId(parseInt(chainId)));
+    if (!window.ethereum || chainId) return;
+    window.ethereum
+      .request({ method: "eth_chainId" })
+      .then((cid) => setChainId(Number(cid)))
+      .catch((e) => console.error("Failed to get chainId:", e));
   }, [chainId]);
 
   useEffect(() => {
     if (!window.ethereum) return;
-    setConnected(window.ethereum.isConnected());
+    try {
+      setConnected(window.ethereum.isConnected());
+    } catch {
+      setConnected(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (!window.ethereum) return;
-    if (!curAccount) return;
+    if (!window.ethereum || !curAccount) return;
 
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    setProvider(provider);
+    const p = new ethers.BrowserProvider(window.ethereum);
+    setProvider(p);
 
-    provider.getSigner(curAccount).then((signer) => setSigner(signer));
+    let cancelled = false;
+    p.getSigner(curAccount)
+      .then((s) => !cancelled && setSigner(s))
+      .catch((e) => console.error("Failed to get signer:", e));
+
+    return () => {
+      cancelled = true;
+      setSigner(null);
+    };
   }, [curAccount]);
 
   useEffect(() => {

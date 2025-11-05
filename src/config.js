@@ -1,2 +1,5 @@
-export const CHANGESET_URL_PREFIX = process.env.REACT_APP_CHANGESET_URL_PREFIX || "";
-export const ADDRESSBOOK_URL = process.env.REACT_APP_ADDRESSBOOK_URL || "/addressBook.json";
+const env = import.meta.env;
+
+export const CHANGESET_URL_PREFIX = env.VITE_CHANGESET_URL_PREFIX || "";
+
+export const ADDRESSBOOK_URL = env.VITE_ADDRESSBOOK_URL || "/addressBook.json";

@@ -20,9 +20,8 @@ function TransactionCard({ transaction, onConfirm }) {
   const addressBookResponse = useQuery({
     queryKey: [KEY_ADDRESS_BOOK],
     queryFn: getAddressBook,
-    // Fetch only once, no need to refresh
     staleTime: Infinity,
-    cacheTime: Infinity,
+    gcTime: Infinity,
   });
 
   const { curAccount } = useWallet();
