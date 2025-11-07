@@ -9,9 +9,7 @@ import SafeThemeProvider from "./theme/SafeThemeProvider";
 import WalletProvider from "./wallet";
 import App from "./App";
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { refetchOnWindowFocus: false } },
-});
+const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
