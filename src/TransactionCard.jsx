@@ -48,7 +48,7 @@ function TransactionCard({ transaction, onConfirm }) {
       </AccordionSummary>
       <AccordionDetails>
         <Grid container spacing={2}>
-          <Grid item xs={8}>
+          <Grid item size={8}>
             <Paper style={{ height: "100%" }} variant="outlined">
               <Typography>
                 Nonce: {transaction.nonce} <br />
@@ -57,13 +57,13 @@ function TransactionCard({ transaction, onConfirm }) {
               </Typography>
             </Paper>
           </Grid>
-          <Grid item container xs={4}>
+          <Grid item container size={4}>
             <Paper style={{ height: "100%", width: "100%" }} variant="outlined">
               <Grid container spacing={2}>
-                <Grid item xs={12}>
+                <Grid item size={12}>
                   <Typography variant="h6">Signers</Typography>
                 </Grid>
-                <Grid item xs={12} sx={{ margin: "0 10%" }}>
+                <Grid item size={12} sx={{ margin: "0 10%" }}>
                   <Stack direction="column" spacing={1}>
                     {transaction.confirmations.length === 0 && <Typography>No signatures yet</Typography>}
                     {transaction.confirmations.map((signer) => (
@@ -75,7 +75,7 @@ function TransactionCard({ transaction, onConfirm }) {
                     ))}
                   </Stack>
                 </Grid>
-                <Grid item container xs={12} justifyContent="center">
+                <Grid item container size={12} justifyContent="center">
                   <WalletActionButton
                     onClick={onConfirm}
                     disabled={!signEnabled}
@@ -87,7 +87,7 @@ function TransactionCard({ transaction, onConfirm }) {
               </Grid>
             </Paper>
           </Grid>
-          <Grid item xs={12}>
+          <Grid item size={12}>
             <Paper variant="outlined">
               <Typography variant="h6">Transaction Details</Typography>
               <pre>{txDetails.original_yaml}</pre>

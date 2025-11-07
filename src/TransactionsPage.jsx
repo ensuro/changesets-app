@@ -11,12 +11,12 @@ function TransactionsPage() {
 
   return (
     <Grid container spacing={3}>
-      <Grid item xs={12}>
+      <Grid item size={12}>
         <Paper sx={{ p: 2, display: "flex", flexDirection: "column" }}>
           <SafeSummary address={safe.safeAddress} />
         </Paper>
       </Grid>
-      <Grid item xs={12}>
+      <Grid item size={12}>
         <Paper sx={{ p: 2, display: "flex", flexDirection: "column" }}>
           <Transactions />
         </Paper>
