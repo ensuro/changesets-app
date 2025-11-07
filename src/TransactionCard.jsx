@@ -11,9 +11,9 @@ import { useWallet } from "./wallet";
 import { useSafe } from "./safe-ui";
 import WalletActionButton from "./WalletActionButton";
 
-function TransactionCard({ transaction, onConfirm }) {
+function TransactionCard({ transaction, onConfirm, readOnly = false }) {
   const txDetailsResponse = useQuery({
-    queryKey: [KEY_TRANSACTION_DETAILS, transaction.safeTxHash],
+    queryKey: [KEY_TRANSACTION_DETAILS, transaction.safeTxHash || transaction.transactionHash || transaction.txHash],
     queryFn: async () => getTransactionDetails(transaction.safeTxHash),
   });
 
@@ -75,15 +75,17 @@ function TransactionCard({ transaction, onConfirm }) {
                     ))}
                   </Stack>
                 </Grid>
-                <Grid item container size={12} justifyContent="center">
-                  <WalletActionButton
-                    onClick={onConfirm}
-                    disabled={!signEnabled}
-                    style={{ marginBottom: "10px", width: "90%" }}
-                  >
-                    {isOwner ? "Approve" : "Switch to an owner account"}
-                  </WalletActionButton>
-                </Grid>
+                {!readOnly && (
+                  <Grid item container size={12} justifyContent="center">
+                    <WalletActionButton
+                      onClick={onConfirm}
+                      disabled={!signEnabled}
+                      style={{ marginBottom: "10px", width: "90%" }}
+                    >
+                      {isOwner ? "Approve" : "Switch to an owner account"}
+                    </WalletActionButton>
+                  </Grid>
+                )}
               </Grid>
             </Paper>
           </Grid>

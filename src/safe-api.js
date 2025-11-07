@@ -27,6 +27,14 @@ export async function getTransactions(safe) {
   return txs.results.sort((a, b) => a.nonce - b.nonce);
 }
 
+export async function getTransactionsHistoryPage(safe, { limit = 5, offset = 0 } = {}) {
+  const apiKit = getApi(safe.chainId);
+  const res = await apiKit.getAllTransactions(safe.safeAddress, { limit, offset, executed: true });
+  const items = res.results.slice().sort((a, b) => a.nonce - b.nonce);
+  const hasMore = items.length === limit;
+  return { items, hasMore, nextOffset: offset + items.length };
+}
+
 export async function getDelegates(safe) {
   const apiKit = getApi(safe.chainId);
   const response = await apiKit.getSafeDelegates({ safeAddress: safe.safeAddress });

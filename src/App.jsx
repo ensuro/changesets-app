@@ -24,10 +24,12 @@ import AccountsMenu from "./AccountsMenu";
 
 import TransactionsPage from "./TransactionsPage";
 import DelegatesPage from "./DelegatesPage";
+import HistoryPage from "./HistoryPage";
 
 const navigation = [
   { name: "Transactions", icon: <AssignmentIcon />, content: <TransactionsPage /> },
   { name: "Delegates", icon: <ParaglidingIcon />, content: <DelegatesPage /> },
+  { name: "History", icon: <AssignmentIcon />, content: <HistoryPage /> },
 ];
 
 function Copyright(props) {
