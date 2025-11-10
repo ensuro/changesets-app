@@ -19,6 +19,7 @@ import ListItemText from "@mui/material/ListItemText";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ParaglidingIcon from "@mui/icons-material/Paragliding";
+import HistoryIcon from "@mui/icons-material/History";
 
 import AccountsMenu from "./AccountsMenu";
 
@@ -31,7 +32,7 @@ import { ENVIRONMENT } from "./config";
 const navigation = [
   { name: "Transactions", icon: <AssignmentIcon />, content: <TransactionsPage /> },
   { name: "Delegates", icon: <ParaglidingIcon />, content: <DelegatesPage /> },
-  { name: "History", icon: <AssignmentIcon />, content: <HistoryPage /> },
+  { name: "History", icon: <HistoryIcon />, content: <HistoryPage /> },
 ];
 
 function Copyright(props) {
