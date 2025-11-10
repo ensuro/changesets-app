@@ -54,6 +54,12 @@ export async function addDelegate(safe, delegate, signer) {
 
 export async function getTransactionDetails(safeTxHash) {
   const response = await fetch(`${CHANGESET_URL_PREFIX}/${safeTxHash}.json`);
+  if (!response.ok) {
+    const error = new Error(`HTTP ${response.status}`);
+    error.status = response.status;
+    error.url = response.url;
+    throw error;
+  }
   return response.json();
 }
 

@@ -12,8 +12,9 @@ import { useSafe } from "./safe-ui";
 import WalletActionButton from "./WalletActionButton";
 
 function TransactionCard({ transaction, onConfirm, readOnly = false }) {
+  const txKey = transaction.safeTxHash || transaction.transactionHash || transaction.txHash;
   const txDetailsResponse = useQuery({
-    queryKey: [KEY_TRANSACTION_DETAILS, transaction.safeTxHash || transaction.transactionHash || transaction.txHash],
+    queryKey: [KEY_TRANSACTION_DETAILS, txKey],
     queryFn: async () => getTransactionDetails(transaction.safeTxHash),
   });
 
@@ -28,7 +29,29 @@ function TransactionCard({ transaction, onConfirm, readOnly = false }) {
   const { owners } = useSafe();
 
   if (txDetailsResponse.isPending) return <div>Loading...</div>;
-  if (txDetailsResponse.isError) return <div>Error: {txDetailsResponse.error.message}</div>;
+  if (txDetailsResponse.isError) {
+    if (txDetailsResponse.error?.status === 404) {
+      return (
+        <Accordion elevation={2}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography>{txKey}</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              <Grid item size={12}>
+                <Paper variant="outlined" style={{ padding: 12 }}>
+                  <Typography color="text.secondary">
+                    The specified key does not exist. No such object: changesets-polygon/{`${txKey}`}
+                  </Typography>
+                </Paper>
+              </Grid>
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+      );
+    }
+    return <div>Error: {String(txDetailsResponse.error?.message || txDetailsResponse.error)}</div>;
+  }
 
   const txDetails = txDetailsResponse.data;
 

@@ -26,6 +26,8 @@ import TransactionsPage from "./TransactionsPage";
 import DelegatesPage from "./DelegatesPage";
 import HistoryPage from "./HistoryPage";
 
+import { ENVIRONMENT } from "./config";
+
 const navigation = [
   { name: "Transactions", icon: <AssignmentIcon />, content: <TransactionsPage /> },
   { name: "Delegates", icon: <ParaglidingIcon />, content: <DelegatesPage /> },
@@ -40,6 +42,8 @@ function Copyright(props) {
         Ensuro
       </Link>{" "}
       {new Date().getFullYear()}
+      {" — "}
+      {ENVIRONMENT.name}-{ENVIRONMENT.version}
       {"."}
     </Typography>
   );

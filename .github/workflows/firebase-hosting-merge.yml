@@ -16,6 +16,8 @@ jobs:
           node-version: 22
           cache: 'npm'
       - run: npm ci
+      - run: |
+          echo "VITE_ENV_VERSION=${{ github.event.inputs.version }} >> .env
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
