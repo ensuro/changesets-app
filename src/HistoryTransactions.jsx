@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Stack, Button, Typography } from "@mui/material";
+import { Stack, Button, Typography, Divider } from "@mui/material";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import TransactionCard from "./TransactionCard";
