@@ -15,7 +15,12 @@ function TransactionCard({ transaction, onConfirm, readOnly = false }) {
   const txKey = transaction.safeTxHash || transaction.transactionHash || transaction.txHash;
   const txDetailsResponse = useQuery({
     queryKey: [KEY_TRANSACTION_DETAILS, txKey],
+    enabled: !!transaction.safeTxHash,
     queryFn: async () => getTransactionDetails(transaction.safeTxHash),
+    retry: (failureCount, err) => {
+      if (readOnly && err?.status === 404) return false;
+      return failureCount < 1;
+    },
   });
 
   const addressBookResponse = useQuery({
@@ -45,7 +50,7 @@ function TransactionCard({ transaction, onConfirm, readOnly = false }) {
   if (txDetailsResponse.isError) {
     if (txDetailsResponse.error?.status === 404) {
       const chainPrefix = chainPrefixFromId(chainId);
-      const safeIdPart = `multisig_${safeAddress}_${txKey}`;
+      const safeIdPart = `multisig_${safeAddress}_${transaction.safeTxHash}`;
       const safeUrl = `https://app.safe.global/transactions/tx?safe=${chainPrefix}:${safeAddress}&id=${safeIdPart}`;
       return (
         <Accordion elevation={2}>
@@ -54,12 +59,47 @@ function TransactionCard({ transaction, onConfirm, readOnly = false }) {
           </AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
+              <Grid item size={8}>
+                <Paper style={{ height: "100%" }} variant="outlined">
+                  <Typography>
+                    Nonce: {transaction.nonce} <br />
+                    Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
+                    Modified: {transaction.modified}
+                  </Typography>
+                </Paper>
+              </Grid>
+
+              <Grid item container size={4}>
+                <Paper style={{ height: "100%", width: "100%" }} variant="outlined">
+                  <Grid container spacing={2}>
+                    <Grid item size={12}>
+                      <Typography variant="h6">Signers</Typography>
+                    </Grid>
+                    <Grid item size={12} sx={{ margin: "0 10%" }}>
+                      <Stack direction="column" spacing={1}>
+                        {transaction.confirmations?.length === 0 && <Typography>No signatures yet</Typography>}
+                        {transaction.confirmations?.map((signer) => (
+                          <Address
+                            key={signer.owner}
+                            address={signer.owner}
+                            displayName={addressBookResponse.data?.[signer.owner]}
+                          />
+                        ))}
+                      </Stack>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </Grid>
+
               <Grid item size={12}>
                 <Paper variant="outlined" style={{ padding: 12 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Transaction Details
+                  </Typography>
                   <Typography color="text.secondary">
                     No changeset found for transaction{" "}
                     <a href={safeUrl} target="_blank" rel="noopener noreferrer">
-                      {txKey}
+                      {transaction.safeTxHash || txKey}
                     </a>
                   </Typography>
                 </Paper>
