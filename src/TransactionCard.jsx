@@ -12,11 +12,11 @@ import { useSafe } from "./safe-ui";
 import WalletActionButton from "./WalletActionButton";
 
 function TransactionCard({ transaction, onConfirm, readOnly = false }) {
-  const txKey = transaction.safeTxHash || transaction.transactionHash || transaction.txHash;
+  const safeKey = transaction.safeTxHash ?? null;
   const txDetailsResponse = useQuery({
-    queryKey: [KEY_TRANSACTION_DETAILS, txKey],
-    enabled: !!transaction.safeTxHash,
-    queryFn: async () => getTransactionDetails(transaction.safeTxHash),
+    queryKey: [KEY_TRANSACTION_DETAILS, safeKey],
+    enabled: !!safeKey,
+    queryFn: async () => getTransactionDetails(safeKey),
     retry: (failureCount, err) => {
       if (readOnly && err?.status === 404) return false;
       return failureCount < 1;
@@ -46,16 +46,16 @@ function TransactionCard({ transaction, onConfirm, readOnly = false }) {
     }
   }
 
-  if (txDetailsResponse.isPending) return <div>Loading...</div>;
+  if (txDetailsResponse.fetchStatus === "fetching") return <div>Loading...</div>;
   if (txDetailsResponse.isError) {
     if (txDetailsResponse.error?.status === 404) {
       const chainPrefix = chainPrefixFromId(chainId);
-      const safeIdPart = `multisig_${safeAddress}_${transaction.safeTxHash}`;
+      const safeIdPart = `multisig_${safeAddress}_${safeKey}`;
       const safeUrl = `https://app.safe.global/transactions/tx?safe=${chainPrefix}:${safeAddress}&id=${safeIdPart}`;
       return (
         <Accordion elevation={2}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography>{txKey}</Typography>
+            <Typography>{safeKey}</Typography>
           </AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
@@ -99,7 +99,7 @@ function TransactionCard({ transaction, onConfirm, readOnly = false }) {
                   <Typography color="text.secondary">
                     No changeset found for transaction{" "}
                     <a href={safeUrl} target="_blank" rel="noopener noreferrer">
-                      {transaction.safeTxHash || txKey}
+                      {safeKey}
                     </a>
                   </Typography>
                 </Paper>
