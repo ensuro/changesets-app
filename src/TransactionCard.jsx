@@ -46,7 +46,7 @@ function TransactionCard({ transaction, onConfirm, readOnly = false }) {
     }
   }
 
-  if (txDetailsResponse.isLoading) return <div>Loading...</div>;
+  if (txDetailsResponse.isPending) return <div>Loading...</div>;
   if (txDetailsResponse.isError) {
     if (txDetailsResponse.error?.status === 404) {
       const chainPrefix = chainPrefixFromId(chainId);
