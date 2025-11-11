@@ -26,11 +26,27 @@ function TransactionCard({ transaction, onConfirm, readOnly = false }) {
   });
 
   const { curAccount } = useWallet();
-  const { owners } = useSafe();
+  const { owners, chainId, safeAddress } = useSafe();
+
+  function chainPrefixFromId(chainId) {
+    switch (Number(chainId)) {
+      case 1:
+        return "eth";
+      case 137:
+        return "matic";
+      case 42161:
+        return "arb1";
+      default:
+        return String(chainId);
+    }
+  }
 
   if (txDetailsResponse.isPending) return <div>Loading...</div>;
   if (txDetailsResponse.isError) {
     if (txDetailsResponse.error?.status === 404) {
+      const chainPrefix = chainPrefixFromId(chainId);
+      const safeIdPart = `multisig_${safeAddress}_${txKey}`;
+      const safeUrl = `https://app.safe.global/transactions/tx?safe=${chainPrefix}:${safeAddress}&id=${safeIdPart}`;
       return (
         <Accordion elevation={2}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -41,7 +57,10 @@ function TransactionCard({ transaction, onConfirm, readOnly = false }) {
               <Grid item size={12}>
                 <Paper variant="outlined" style={{ padding: 12 }}>
                   <Typography color="text.secondary">
-                    The specified key does not exist. No such object: changesets-polygon/{`${txKey}`}
+                    No changeset found for transaction{" "}
+                    <a href={safeUrl} target="_blank" rel="noopener noreferrer">
+                      {txKey}
+                    </a>
                   </Typography>
                 </Paper>
               </Grid>
