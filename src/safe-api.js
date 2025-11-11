@@ -1,3 +1,4 @@
+// src/safe-api.js
 import SafeApiKit from "@safe-global/api-kit";
 import Safe from "@safe-global/protocol-kit";
 
@@ -78,4 +79,33 @@ export async function postConfirmation(safe, safeTxHash, signer) {
 
   const apiKit = getApi(safe.chainId);
   return apiKit.confirmTransaction(safeTxHash, signature.data);
+}
+
+export async function resolveSafeTxHashFromTxHash(safe, txHash) {
+  const chain = Number(safe.chainId) === 137 ? "pol" : Number(safe.chainId) === 1 ? "eth" : String(safe.chainId);
+
+  const url = `https://api.safe.global/tx-service/${chain}/api/v1/transactions/${txHash}/`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}`);
+    err.status = res.status;
+    err.url = url;
+    throw err;
+  }
+  const data = await res.json();
+  const safeTxHash = data.safeTxHash || data.safe_tx_hash || null;
+  if (!safeTxHash) {
+    const err = new Error("No Safe multisig found for this transaction hash (no safeTxHash available).");
+    err.status = 404;
+    throw err;
+  }
+  return safeTxHash;
+}
+
+export async function getTransactionDetailsByKey(safe, { type, key }) {
+  if (type === "txHash") {
+    const safeTxHash = await resolveSafeTxHashFromTxHash(safe, key);
+    return getTransactionDetails(safeTxHash);
+  }
+  return getTransactionDetails(key);
 }
