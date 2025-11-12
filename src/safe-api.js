@@ -29,9 +29,15 @@ export async function getTransactions(safe) {
 
 export async function getTransactionsHistoryPage(safe, { limit = 5, offset = 0 } = {}) {
   const apiKit = getApi(safe.chainId);
-  const res = await apiKit.getAllTransactions(safe.safeAddress, { limit, offset, executed: true });
-  const items = res.results.slice().sort((a, b) => a.nonce - b.nonce);
-  const hasMore = items.length === limit;
+  const params = {
+    executed: true,
+    ordering: "-executionDate",
+    limit,
+    offset,
+  };
+  const res = await apiKit.getMultisigTransactions(safe.safeAddress, params);
+  const items = res.results.slice();
+  const hasMore = Boolean(res.next);
   return { items, hasMore, nextOffset: offset + items.length };
 }
 
