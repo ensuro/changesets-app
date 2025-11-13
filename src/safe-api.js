@@ -12,8 +12,8 @@ export const KEY_ADDRESS_BOOK = "address-book";
 
 const RPC_BY_CHAIN = {
   137: import.meta.env.VITE_RPC_POLYGON || "https://polygon-rpc.com",
-  1: import.meta.env.VITE_RPC_ETHEREUM || "https://rpc.ankr.com/eth",
-  42161: import.meta.env.VITE_RPC_ARBITRUM || "https://arb1.arbitrum.io/rpc",
+  1: import.meta.env.VITE_RPC_ETHEREUM || "https://ethereum-rpc.publicnode.com",
+  42161: import.meta.env.VITE_RPC_ARBITRUM || "https://arbitrum-one-rpc.publicnode.com",
 };
 
 const apiByChain = new Map();
