@@ -405,14 +405,14 @@ function TransactionCard({
         </AccordionSummary>
         <AccordionDetails>
           <Grid container spacing={2}>
-            <Grid item xs={8}>
+            <Grid item xs={12} md={8}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Skeleton variant="text" width="80%" />
                 <Skeleton variant="text" width="40%" />
                 <Skeleton variant="text" width="60%" />
               </Paper>
             </Grid>
-            <Grid item xs={4}>
+            <Grid item xs={12} md={4}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Skeleton variant="text" width="50%" />
                 <Skeleton variant="rectangular" height={80} />
@@ -520,7 +520,7 @@ function TransactionCard({
       </AccordionSummary>
       <AccordionDetails>
         <Grid container spacing={2}>
-          <Grid item xs={8}>
+          <Grid item xs={12} md={8}>
             <Paper sx={{ height: "100%", p: 2 }} variant="outlined">
               <Typography>
                 Nonce: {transaction.nonce} <br />
@@ -530,7 +530,7 @@ function TransactionCard({
             </Paper>
           </Grid>
 
-          <Grid item xs={4}>
+          <Grid item xs={12} md={4}>
             <Paper sx={{ height: "100%", width: "100%", p: 2 }} variant="outlined">
               <Grid container spacing={2}>
                 <Grid item xs={12}>
