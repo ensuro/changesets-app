@@ -328,12 +328,12 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
           component="pre"
           sx={{
             mt: 1,
-            maxHeight: 260,
-            overflow: "auto",
             fontSize: "0.75rem",
             backgroundColor: "rgba(255,255,255,0.02)",
             borderRadius: 1,
-            p: 1,
+            p: 1.5,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
           }}
         >
           {JSON.stringify(txDetails, null, 2)}
