@@ -1,11 +1,10 @@
-// src/SearchPage.jsx
 import * as React from "react";
 import { Box, Stack, TextField, MenuItem, Button, Paper, Typography, Link } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 
 import { useSafe } from "./safe-ui";
 import { getTransactionDetailsByKey } from "./safe-api";
-import { TransactionDetailsPanel } from "./TransactionCard";
+import TransactionCard from "./TransactionCard";
 
 const KEY_SEARCH = "tx-search";
 
@@ -61,7 +60,6 @@ export default function SearchPage() {
 
   return (
     <Stack spacing={2}>
-      {/* Formulario de búsqueda */}
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Box component="form" onSubmit={onSubmit}>
           <Stack direction="row" spacing={2}>
@@ -93,10 +91,8 @@ export default function SearchPage() {
         </Box>
       </Paper>
 
-      {/* Estado de carga */}
       {hasSubmitted && query.fetchStatus === "fetching" && <Typography>Searching…</Typography>}
 
-      {/* Errores (incluido 404 sin changeset) */}
       {hasSubmitted && query.isError && (
         <Paper variant="outlined" sx={{ p: 2 }}>
           {query.error?.status === 404 ? (
@@ -118,17 +114,8 @@ export default function SearchPage() {
         </Paper>
       )}
 
-      {/* Resultado: panel amigable reutilizando TransactionDetailsPanel */}
       {hasSubmitted && query.isSuccess && query.data?.changeset && (
-        <TransactionDetailsPanel
-          txDetails={query.data.changeset}
-          safeTxHash={query.data.safeTxHash}
-          chainId={chainId}
-          safeAddress={safeAddress}
-          txKey={query.data.safeTxHash}
-          // En la búsqueda no tenemos address book cargado aquí
-          addressBook={undefined}
-        />
+        <TransactionCard txDetails={query.data.changeset} safeTxHash={query.data.safeTxHash} readOnly />
       )}
     </Stack>
   );
