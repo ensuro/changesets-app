@@ -102,14 +102,10 @@ function buildSteps(txDetails) {
 
 function StepItem({ index, step, addressBook }) {
   const title = step.title || step.name || step.action || `Step ${index + 1}`;
-
   const to = step.to || step.recipient || step.target || null;
-
   const value = step.value ?? step.amount ?? null;
   const token = step.token || step.tokenSymbol || step.asset || null;
-
   const summary = step.summary || step.description || null;
-
   const displayName = to && addressBook ? addressBook[to] : undefined;
 
   return (
@@ -185,7 +181,6 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
     chainPrefix && safeAddress ? `https://app.safe.global/transactions/tx?safe=${chainPrefix}:${safeAddress}` : null;
 
   const safeIdParam = safeTxHash ? safeTxHash : txKey && safeAddress ? `multisig_${safeAddress}_${txKey}` : null;
-
   const safeUrl = baseSafeUrl && safeIdParam ? `${baseSafeUrl}&id=${safeIdParam}` : null;
 
   const networks = txDetails?.networks || txDetails?.network || null;
@@ -404,21 +399,28 @@ function TransactionCard({
           <Skeleton variant="text" width="60%" />
         </AccordionSummary>
         <AccordionDetails>
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={8}>
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Skeleton variant="text" width="80%" />
-                <Skeleton variant="text" width="40%" />
-                <Skeleton variant="text" width="60%" />
-              </Paper>
+          <Stack spacing={2}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={8}>
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Skeleton variant="text" width="80%" />
+                  <Skeleton variant="text" width="40%" />
+                  <Skeleton variant="text" width="60%" />
+                </Paper>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Skeleton variant="text" width="50%" />
+                  <Skeleton variant="rectangular" height={80} />
+                </Paper>
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={4}>
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Skeleton variant="text" width="50%" />
-                <Skeleton variant="rectangular" height={80} />
-              </Paper>
-            </Grid>
-          </Grid>
+
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Skeleton variant="text" width="30%" />
+              <Skeleton variant="rectangular" height={120} sx={{ mt: 1 }} />
+            </Paper>
+          </Stack>
         </AccordionDetails>
       </Accordion>
     );
@@ -519,46 +521,46 @@ function TransactionCard({
         </Stack>
       </AccordionSummary>
       <AccordionDetails>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={8}>
-            <Paper sx={{ height: "100%", p: 2 }} variant="outlined">
-              <Typography>
-                Nonce: {transaction.nonce} <br />
-                Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
-                Modified: {transaction.modified}
-              </Typography>
-            </Paper>
+        <Stack spacing={2}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={8}>
+              <Paper sx={{ height: "100%", p: 2 }} variant="outlined">
+                <Typography>
+                  Nonce: {transaction.nonce} <br />
+                  Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
+                  Modified: {transaction.modified}
+                </Typography>
+              </Paper>
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ height: "100%", width: "100%", p: 2 }} variant="outlined">
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <Typography variant="h6">Signers</Typography>
+                  </Grid>
+                  <Grid item xs={12} sx={{ margin: "0 10%" }}>
+                    <Stack direction="column" spacing={1}>
+                      {transaction.confirmations.length === 0 && <Typography>No signatures yet</Typography>}
+                      {transaction.confirmations.map((signer) => (
+                        <Address key={signer.owner} address={signer.owner} displayName={addressBook[signer.owner]} />
+                      ))}
+                    </Stack>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
           </Grid>
 
-          <Grid item xs={12} md={4}>
-            <Paper sx={{ height: "100%", width: "100%", p: 2 }} variant="outlined">
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <Typography variant="h6">Signers</Typography>
-                </Grid>
-                <Grid item xs={12} sx={{ margin: "0 10%" }}>
-                  <Stack direction="column" spacing={1}>
-                    {transaction.confirmations.length === 0 && <Typography>No signatures yet</Typography>}
-                    {transaction.confirmations.map((signer) => (
-                      <Address key={signer.owner} address={signer.owner} displayName={addressBook[signer.owner]} />
-                    ))}
-                  </Stack>
-                </Grid>
-              </Grid>
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12}>
-            <DetailsPanel
-              txDetails={txDetails}
-              safeTxHash={transaction.safeTxHash}
-              chainId={chainId}
-              safeAddress={safeAddress}
-              txKey={txKey}
-              addressBook={addressBook}
-            />
-          </Grid>
-        </Grid>
+          <DetailsPanel
+            txDetails={txDetails}
+            safeTxHash={transaction.safeTxHash}
+            chainId={chainId}
+            safeAddress={safeAddress}
+            txKey={txKey}
+            addressBook={addressBook}
+          />
+        </Stack>
       </AccordionDetails>
     </Accordion>
   );
