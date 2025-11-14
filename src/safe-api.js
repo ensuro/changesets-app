@@ -49,10 +49,13 @@ export async function getDelegates(safe) {
 
 export async function addDelegate(safe, delegate, signer) {
   const apiKit = getApi(safe.chainId);
+  if (!signer) throw new Error("No signer available");
+  const delegatorAddress = await signer.getAddress?.();
+  if (!delegatorAddress) throw new Error("Could not resolve delegator address from signer");
   return apiKit.addSafeDelegate({
     safeAddress: safe.safeAddress,
     delegateAddress: delegate.address,
-    delegatorAddress: signer.address,
+    delegatorAddress,
     signer,
     label: delegate.name,
   });
