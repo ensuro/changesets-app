@@ -19,6 +19,7 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: echo "VITE_SAFE_API_KEY"=${{secrets.DEV_SAFE_API_KEY}} >> .env
+
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
