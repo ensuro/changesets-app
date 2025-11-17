@@ -4,9 +4,9 @@ export const CHANGESET_URL_PREFIX = env.VITE_CHANGESET_URL_PREFIX || "";
 
 export const ADDRESSBOOK_URL = env.VITE_ADDRESSBOOK_URL || "/addressBook.json";
 
-export const SAFE_API_KEY = import.meta.env.VITE_SAFE_API_KEY || "";
+export const SAFE_API_KEY = env.VITE_SAFE_API_KEY || "";
 
 export const ENVIRONMENT = {
-  name: import.meta.env.VITE_ENV_NAME,
-  version: import.meta.env.VITE_ENV_VERSION || "development",
+  name: env.VITE_ENV_NAME,
+  version: env.VITE_ENV_VERSION || "development",
 };

@@ -37,9 +37,15 @@ export async function getTransactions(safe) {
 
 export async function getTransactionsHistoryPage(safe, { limit = 5, offset = 0 } = {}) {
   const apiKit = getApi(safe.chainId);
-  const res = await apiKit.getAllTransactions(safe.safeAddress, { limit, offset, executed: true });
-  const items = res.results.slice().sort((a, b) => a.nonce - b.nonce);
-  const hasMore = items.length === limit;
+  const params = {
+    executed: true,
+    ordering: "-executionDate",
+    limit,
+    offset,
+  };
+  const res = await apiKit.getMultisigTransactions(safe.safeAddress, params);
+  const items = res.results.slice();
+  const hasMore = Boolean(res.next);
   return { items, hasMore, nextOffset: offset + items.length };
 }
 
@@ -51,10 +57,13 @@ export async function getDelegates(safe) {
 
 export async function addDelegate(safe, delegate, signer) {
   const apiKit = getApi(safe.chainId);
+  if (!signer) throw new Error("No signer available");
+  const delegatorAddress = await signer.getAddress?.();
+  if (!delegatorAddress) throw new Error("Could not resolve delegator address from signer");
   return apiKit.addSafeDelegate({
     safeAddress: safe.safeAddress,
     delegateAddress: delegate.address,
-    delegatorAddress: signer.address,
+    delegatorAddress,
     signer,
     label: delegate.name,
   });
