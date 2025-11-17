@@ -4,9 +4,9 @@ import Paper from "@mui/material/Paper";
 
 import { useSafe } from "./safe-ui";
 import SafeSummary from "./SafeSummary";
-import Transactions from "./Transactions";
+import HistoryTransactions from "./HistoryTransactions";
 
-function TransactionsPage() {
+export default function HistoryPage() {
   const safe = useSafe();
 
   return (
@@ -16,13 +16,12 @@ function TransactionsPage() {
           <SafeSummary address={safe.safeAddress} />
         </Paper>
       </Grid>
+
       <Grid item size={12}>
         <Paper sx={{ p: 2, display: "flex", flexDirection: "column" }}>
-          <Transactions />
+          <HistoryTransactions />
         </Paper>
       </Grid>
     </Grid>
   );
 }
-
-export default TransactionsPage;

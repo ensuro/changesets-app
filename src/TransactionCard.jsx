@@ -11,10 +11,16 @@ import { useWallet } from "./wallet";
 import { useSafe } from "./safe-ui";
 import WalletActionButton from "./WalletActionButton";
 
-function TransactionCard({ transaction, onConfirm }) {
+function TransactionCard({ transaction, onConfirm, readOnly = false }) {
+  const txKey = transaction.safeTxHash || transaction.transactionHash || transaction.txHash;
   const txDetailsResponse = useQuery({
-    queryKey: [KEY_TRANSACTION_DETAILS, transaction.safeTxHash],
+    queryKey: [KEY_TRANSACTION_DETAILS, txKey],
+    enabled: !!transaction.safeTxHash,
     queryFn: async () => getTransactionDetails(transaction.safeTxHash),
+    retry: (failureCount, err) => {
+      if (readOnly && err?.status === 404) return false;
+      return failureCount < 1;
+    },
   });
 
   const addressBookResponse = useQuery({
@@ -25,10 +31,86 @@ function TransactionCard({ transaction, onConfirm }) {
   });
 
   const { curAccount } = useWallet();
-  const { owners } = useSafe();
+  const { owners, chainId, safeAddress } = useSafe();
 
-  if (txDetailsResponse.isPending) return <div>Loading...</div>;
-  if (txDetailsResponse.isError) return <div>Error: {txDetailsResponse.error.message}</div>;
+  function chainPrefixFromId(chainId) {
+    switch (Number(chainId)) {
+      case 1:
+        return "eth";
+      case 137:
+        return "matic";
+      case 42161:
+        return "arb1";
+      default:
+        return String(chainId);
+    }
+  }
+  const isLoading = !!txKey && (txDetailsResponse.fetchStatus === "fetching" || txDetailsResponse.isPending);
+  if (isLoading) return <div>Loading...</div>;
+  if (txDetailsResponse.isError) {
+    if (txDetailsResponse.error?.status === 404) {
+      const chainPrefix = chainPrefixFromId(chainId);
+      const safeIdPart = `multisig_${safeAddress}_${transaction.safeTxHash}`;
+      const safeUrl = `https://app.safe.global/transactions/tx?safe=${chainPrefix}:${safeAddress}&id=${safeIdPart}`;
+      return (
+        <Accordion elevation={2}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography>{txKey}</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              <Grid item size={8}>
+                <Paper style={{ height: "100%" }} variant="outlined">
+                  <Typography>
+                    Nonce: {transaction.nonce} <br />
+                    Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
+                    Modified: {transaction.modified}
+                  </Typography>
+                </Paper>
+              </Grid>
+
+              <Grid item container size={4}>
+                <Paper style={{ height: "100%", width: "100%" }} variant="outlined">
+                  <Grid container spacing={2}>
+                    <Grid item size={12}>
+                      <Typography variant="h6">Signers</Typography>
+                    </Grid>
+                    <Grid item size={12} sx={{ margin: "0 10%" }}>
+                      <Stack direction="column" spacing={1}>
+                        {transaction.confirmations?.length === 0 && <Typography>No signatures yet</Typography>}
+                        {transaction.confirmations?.map((signer) => (
+                          <Address
+                            key={signer.owner}
+                            address={signer.owner}
+                            displayName={addressBookResponse.data?.[signer.owner]}
+                          />
+                        ))}
+                      </Stack>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </Grid>
+
+              <Grid item size={12}>
+                <Paper variant="outlined" style={{ padding: 12 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Transaction Details
+                  </Typography>
+                  <Typography color="text.secondary">
+                    No changeset found for transaction{" "}
+                    <a href={safeUrl} target="_blank" rel="noopener noreferrer">
+                      {transaction.safeTxHash || txKey}
+                    </a>
+                  </Typography>
+                </Paper>
+              </Grid>
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+      );
+    }
+    return <div>Error: {String(txDetailsResponse.error?.message || txDetailsResponse.error)}</div>;
+  }
 
   const txDetails = txDetailsResponse.data;
 
@@ -48,7 +130,7 @@ function TransactionCard({ transaction, onConfirm }) {
       </AccordionSummary>
       <AccordionDetails>
         <Grid container spacing={2}>
-          <Grid item xs={8}>
+          <Grid item size={8}>
             <Paper style={{ height: "100%" }} variant="outlined">
               <Typography>
                 Nonce: {transaction.nonce} <br />
@@ -57,13 +139,13 @@ function TransactionCard({ transaction, onConfirm }) {
               </Typography>
             </Paper>
           </Grid>
-          <Grid item container xs={4}>
+          <Grid item container size={4}>
             <Paper style={{ height: "100%", width: "100%" }} variant="outlined">
               <Grid container spacing={2}>
-                <Grid item xs={12}>
+                <Grid item size={12}>
                   <Typography variant="h6">Signers</Typography>
                 </Grid>
-                <Grid item xs={12} sx={{ margin: "0 10%" }}>
+                <Grid item size={12} sx={{ margin: "0 10%" }}>
                   <Stack direction="column" spacing={1}>
                     {transaction.confirmations.length === 0 && <Typography>No signatures yet</Typography>}
                     {transaction.confirmations.map((signer) => (
@@ -75,19 +157,21 @@ function TransactionCard({ transaction, onConfirm }) {
                     ))}
                   </Stack>
                 </Grid>
-                <Grid item container xs={12} justifyContent="center">
-                  <WalletActionButton
-                    onClick={onConfirm}
-                    disabled={!signEnabled}
-                    style={{ marginBottom: "10px", width: "90%" }}
-                  >
-                    {isOwner ? "Approve" : "Switch to an owner account"}
-                  </WalletActionButton>
-                </Grid>
+                {!readOnly && (
+                  <Grid item container size={12} justifyContent="center">
+                    <WalletActionButton
+                      onClick={onConfirm}
+                      disabled={!signEnabled}
+                      style={{ marginBottom: "10px", width: "90%" }}
+                    >
+                      {isOwner ? "Approve" : "Switch to an owner account"}
+                    </WalletActionButton>
+                  </Grid>
+                )}
               </Grid>
             </Paper>
           </Grid>
-          <Grid item xs={12}>
+          <Grid item size={12}>
             <Paper variant="outlined">
               <Typography variant="h6">Transaction Details</Typography>
               <pre>{txDetails.original_yaml}</pre>

@@ -46,41 +46,41 @@ function DelegatesPage() {
 
   return (
     <Grid container spacing={3}>
-      <Grid item xs={12}>
+      <Grid item size={12}>
         <Card>
           <CardContent>
             {delegatesResponse.data.map((delegate) => (
               <Address address={delegate.delegate} displayName={delegate.label} key={delegate.delegate} />
             ))}
             {delegatesResponse.data.length === 0 && (
-              <Grid item xs={12}>
+              <Grid item size={12}>
                 <Typography variant="body2">No delegates</Typography>
               </Grid>
             )}
           </CardContent>
         </Card>
       </Grid>
-      <Grid item xs={12}>
+      <Grid item size={12}>
         <Card>
           <CardContent>
             <Typography variant="h6">Grant Delegate Access</Typography>
             <form>
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid item size={6}>
                   <TextField
                     label="Address"
                     fullWidth
                     onChange={(e) => setNewDelegate({ ...newDelegate, address: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item size={4}>
                   <TextField
                     label="Name"
                     fullWidth
                     onChange={(e) => setNewDelegate({ ...newDelegate, name: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={2}>
+                <Grid item size={2}>
                   <WalletActionButton disabled={!addEnabled} onClick={addNewDelegate.mutate}>
                     Grant Access
                   </WalletActionButton>
