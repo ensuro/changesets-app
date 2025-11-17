@@ -5,7 +5,7 @@ name: Deploy to Firebase Hosting on release
 on:
   push:
     branches-ignore:
-      - "*"
+      - "**"
     tags:
       - v*
   workflow_dispatch:
