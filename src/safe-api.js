@@ -1,7 +1,6 @@
 // src/safe-api.js
 import SafeApiKit from "@safe-global/api-kit";
 import Safe from "@safe-global/protocol-kit";
-import { ethers } from "ethers";
 
 import { CHANGESET_URL_PREFIX, ADDRESSBOOK_URL, SAFE_API_KEY } from "./config";
 
@@ -9,12 +8,6 @@ export const KEY_TRANSACTIONS = "transactions";
 export const KEY_DELEGATES = "delegates";
 export const KEY_TRANSACTION_DETAILS = "transaction-details";
 export const KEY_ADDRESS_BOOK = "address-book";
-
-const RPC_BY_CHAIN = {
-  137: import.meta.env.VITE_RPC_POLYGON || "https://polygon-rpc.com",
-  1: import.meta.env.VITE_RPC_ETHEREUM || "https://ethereum-rpc.publicnode.com",
-  42161: import.meta.env.VITE_RPC_ARBITRUM || "https://arbitrum-one-rpc.publicnode.com",
-};
 
 const apiByChain = new Map();
 function getApi(chainId) {
@@ -98,41 +91,23 @@ export async function postConfirmation(safe, safeTxHash, signer) {
 }
 
 export async function resolveSafeTxHashFromTxHash(safe, txHash) {
-  const chainId = Number(safe?.chainId);
-  const rpc = RPC_BY_CHAIN[chainId];
+  const apiKit = getApi(safe.chainId);
+  const res = await apiKit.getMultisigTransactions(safe.safeAddress, {
+    transaction_hash: txHash,
+    limit: 1,
+  });
 
-  const provider = new ethers.JsonRpcProvider(rpc, chainId);
-  const receipt = await provider.getTransactionReceipt(txHash);
-
-  const expectedSafe = String(safe.safeAddress || "").toLowerCase();
-  const toAddr = String(receipt.to || "").toLowerCase();
-  const allLogs = Array.isArray(receipt.logs) ? receipt.logs : [];
-
-  let candidateLogs = allLogs;
-  if (expectedSafe && expectedSafe === toAddr) {
-    candidateLogs = allLogs.filter((l) => String(l.address).toLowerCase() === expectedSafe);
-  } else if (toAddr) {
-    candidateLogs = allLogs.filter((l) => String(l.address).toLowerCase() === toAddr);
+  const results = res?.results || [];
+  if (!results.length) {
+    const err = new Error("No Safe multisig execution found for this transaction (no safeTxHash).");
+    err.status = 404;
+    throw err;
   }
 
-  const seen = new Set(candidateLogs.map((l) => l.logIndex));
-  const orderedLogs = candidateLogs.concat(allLogs.filter((l) => !seen.has(l.logIndex)));
+  const tx = results[0];
+  const safeTxHash = tx.safeTxHash || tx.safe_tx_hash;
 
-  const iface = new ethers.Interface([
-    "event ExecutionSuccess(bytes32 txHash, uint256 payment)",
-    "event ExecutionFailure(bytes32 txHash, uint256 payment)",
-  ]);
-
-  for (const log of orderedLogs) {
-    const parsed = iface.parseLog({ topics: log.topics, data: log.data });
-    if (parsed && (parsed.name === "ExecutionSuccess" || parsed.name === "ExecutionFailure")) {
-      return ethers.hexlify(parsed.args.txHash);
-    }
-  }
-
-  const err = new Error("No Safe multisig execution found for this transaction on-chain (no safeTxHash).");
-  err.status = 404;
-  throw err;
+  return safeTxHash;
 }
 
 export async function getTransactionDetailsByKey(safe, { type, key }) {
