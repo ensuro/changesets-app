@@ -46,6 +46,63 @@ function truncateMiddle(str, visible = 6) {
   return `${str.slice(0, visible)}…${str.slice(-visible)}`;
 }
 
+function formatScalarForYaml(v) {
+  if (v === null) return "null";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "string") {
+    if (v === "" || /\s/.test(v) || /[:{}[\],&*#?|<>=!%@`]/.test(v)) {
+      const escaped = v.replace(/"/g, '\\"');
+      return `"${escaped}"`;
+    }
+    return v;
+  }
+  return String(v);
+}
+
+function jsonToYaml(value, indent = 0) {
+  const ind = "  ".repeat(indent);
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return ind + "[]";
+    return value
+      .map((item) => {
+        if (item && typeof item === "object") {
+          const child = jsonToYaml(item, indent + 1);
+          const lines = child.split("\n");
+          const [first, ...rest] = lines;
+          let out = `${ind}- ${first.trimStart()}`;
+          if (rest.length) {
+            out += "\n" + rest.map((l) => (l.startsWith("  ") ? ind + l : ind + "  " + l.trimStart())).join("\n");
+          }
+          return out;
+        }
+        return `${ind}- ${formatScalarForYaml(item)}`;
+      })
+      .join("\n");
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value);
+    if (!entries.length) return ind + "{}";
+    return entries
+      .map(([k, v]) => {
+        if (v && typeof v === "object") {
+          const child = jsonToYaml(v, indent + 1);
+          const lines = child.split("\n");
+          if (lines.length === 1 && !Array.isArray(v)) {
+            return `${ind}${k}: ${lines[0].trim()}`;
+          }
+          return `${ind}${k}:\n${child}`;
+        }
+        return `${ind}${k}: ${formatScalarForYaml(v)}`;
+      })
+      .join("\n");
+  }
+
+  return ind + formatScalarForYaml(value);
+}
+
 function buildSteps(txDetails) {
   if (!txDetails) return [];
 
@@ -60,6 +117,19 @@ function buildSteps(txDetails) {
       const value = values[index];
       const payload = payloads[index];
       const args = asArgs[index];
+      let method = null;
+      if (args && typeof args === "object") {
+        method =
+          args.method ||
+          args.function ||
+          args.fn ||
+          args.name ||
+          args.selector ||
+          args.signature ||
+          args.contractMethod ||
+          args.contract_method ||
+          null;
+      }
 
       return {
         id: `batch-${index}`,
@@ -69,6 +139,7 @@ function buildSteps(txDetails) {
         token: null,
         summary: payload ? `Calldata: ${truncateMiddle(payload, 10)}` : null,
         rawArgs: args,
+        method,
       };
     });
   }
@@ -107,6 +178,26 @@ function StepItem({ index, step, addressBook }) {
   const token = step.token || step.tokenSymbol || step.asset || null;
   const summary = step.summary || step.description || null;
   const displayName = to && addressBook ? addressBook[to] : undefined;
+
+  const method =
+    step.method ||
+    step.function ||
+    step.functionName ||
+    step.selector ||
+    step.signature ||
+    step.contractMethod ||
+    step.contract_method ||
+    (step.rawArgs && typeof step.rawArgs === "object"
+      ? step.rawArgs.method ||
+        step.rawArgs.function ||
+        step.rawArgs.fn ||
+        step.rawArgs.name ||
+        step.rawArgs.selector ||
+        step.rawArgs.signature
+      : null);
+
+  const args =
+    step.rawArgs ?? step.args ?? step.parameters ?? step.params ?? step.contractArgs ?? step.contract_args ?? null;
 
   return (
     <Box
@@ -156,6 +247,15 @@ function StepItem({ index, step, addressBook }) {
               </Typography>
             )}
 
+            {method && (
+              <Typography variant="caption" color="text.secondary">
+                Method:{" "}
+                <Typography component="span" variant="caption" sx={{ fontFamily: "monospace" }}>
+                  {String(method)}
+                </Typography>
+              </Typography>
+            )}
+
             {value != null && (
               <Typography variant="caption" color="text.secondary">
                 Amount:{" "}
@@ -165,6 +265,24 @@ function StepItem({ index, step, addressBook }) {
                 </Typography>
               </Typography>
             )}
+
+            {args != null && (
+              <Box
+                component="pre"
+                sx={{
+                  mt: 0.5,
+                  fontSize: "0.7rem",
+                  fontFamily: "monospace",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  backgroundColor: "rgba(255,255,255,0.02)",
+                  borderRadius: 1,
+                  p: 1,
+                }}
+              >
+                {typeof args === "string" ? args : JSON.stringify(args, null, 2)}
+              </Box>
+            )}
           </Stack>
         </Box>
       </Stack>
@@ -173,7 +291,8 @@ function StepItem({ index, step, addressBook }) {
 }
 
 function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addressBook }) {
-  const [showRaw, setShowRaw] = React.useState(false);
+  const [showYaml, setShowYaml] = React.useState(false);
+  const [showJson, setShowJson] = React.useState(false);
 
   const steps = buildSteps(txDetails);
   const chainPrefix = chainPrefixFromId(chainId);
@@ -203,6 +322,9 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
 
   const titleDescription = txDetails?.description || "Multisig transaction";
 
+  const rawYaml = jsonToYaml(txDetails || {});
+  const rawJson = JSON.stringify(txDetails || {}, null, 2);
+
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Typography variant="h6" sx={{ fontWeight: 600 }} gutterBottom>
@@ -217,11 +339,9 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
         <Box sx={{ mb: 1 }}>
           <Typography variant="caption" color="text.secondary">
             safeTxHash:{" "}
-            <Tooltip title={safeTxHash}>
-              <Box component="span" sx={{ fontFamily: "monospace" }}>
-                {truncateMiddle(safeTxHash, 8)}
-              </Box>
-            </Tooltip>
+            <Box component="span" sx={{ fontFamily: "monospace", wordBreak: "break-all" }}>
+              {safeTxHash}
+            </Box>
           </Typography>
         </Box>
       )}
@@ -318,12 +438,17 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
           )}
         </Box>
 
-        <Button size="small" variant="text" onClick={() => setShowRaw((v) => !v)}>
-          {showRaw ? "Hide raw JSON" : "Show raw JSON"}
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Button size="small" variant={showYaml ? "contained" : "outlined"} onClick={() => setShowYaml((v) => !v)}>
+            YAML
+          </Button>
+          <Button size="small" variant={showJson ? "contained" : "outlined"} onClick={() => setShowJson((v) => !v)}>
+            JSON
+          </Button>
+        </Stack>
       </Stack>
 
-      <Collapse in={showRaw} unmountOnExit>
+      <Collapse in={showYaml} unmountOnExit>
         <Box
           component="pre"
           sx={{
@@ -334,9 +459,28 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
             p: 1.5,
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
+            fontFamily: "monospace",
           }}
         >
-          {JSON.stringify(txDetails, null, 2)}
+          {rawYaml}
+        </Box>
+      </Collapse>
+
+      <Collapse in={showJson} unmountOnExit>
+        <Box
+          component="pre"
+          sx={{
+            mt: 1,
+            fontSize: "0.75rem",
+            backgroundColor: "rgba(255,255,255,0.02)",
+            borderRadius: 1,
+            p: 1.5,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            fontFamily: "monospace",
+          }}
+        >
+          {rawJson}
         </Box>
       </Collapse>
     </Paper>
@@ -382,6 +526,15 @@ function TransactionCard({
   const addressBook = addressBookResponse.data || {};
   const txDetails = txDetailsProp || txDetailsResponse.data;
 
+  const handleApproveClick = React.useCallback(
+    (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      if (onConfirm) onConfirm();
+    },
+    [onConfirm]
+  );
+
   if (!hasTransaction || variant === "panel") {
     if (!txDetails) return null;
     return (
@@ -405,14 +558,14 @@ function TransactionCard({
         <AccordionDetails>
           <Stack spacing={2}>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={8}>
+              <Grid item xs={12} md={6}>
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Skeleton variant="text" width="80%" />
                   <Skeleton variant="text" width="40%" />
                   <Skeleton variant="text" width="60%" />
                 </Paper>
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <Paper variant="outlined" sx={{ p: 2 }}>
                   <Skeleton variant="text" width="50%" />
                   <Skeleton variant="rectangular" height={80} />
@@ -491,21 +644,16 @@ function TransactionCard({
             </Typography>
             <Stack direction="row" spacing={1} sx={{ mt: 0.5 }} alignItems="center">
               {transaction.safeTxHash && (
-                <Tooltip title={transaction.safeTxHash}>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{
-                      fontFamily: "monospace",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      maxWidth: 200,
-                    }}
-                  >
-                    {truncateMiddle(transaction.safeTxHash, 6)}
-                  </Typography>
-                </Tooltip>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{
+                    fontFamily: "monospace",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {transaction.safeTxHash}
+                </Typography>
               )}
               <Chip label={`Nonce ${transaction.nonce}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem" }} />
             </Stack>
@@ -514,7 +662,7 @@ function TransactionCard({
           {!readOnly && (
             <Box sx={{ ml: 1 }}>
               <WalletActionButton
-                onClick={onConfirm}
+                onClick={handleApproveClick}
                 disabled={!signEnabled}
                 style={{ marginBottom: "10px", width: "100%" }}
               >
@@ -527,7 +675,7 @@ function TransactionCard({
       <AccordionDetails>
         <Stack spacing={2}>
           <Grid container spacing={2}>
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12} md={6}>
               <Paper sx={{ height: "100%", p: 2 }} variant="outlined">
                 <Typography>
                   Nonce: {transaction.nonce} <br />
@@ -537,7 +685,7 @@ function TransactionCard({
               </Paper>
             </Grid>
 
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <Paper sx={{ height: "100%", width: "100%", p: 2 }} variant="outlined">
                 <Grid container spacing={2}>
                   <Grid item xs={12}>
