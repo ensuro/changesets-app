@@ -7,14 +7,12 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
-  Grid,
   Paper,
   Stack,
   Typography,
   Skeleton,
   Box,
   Chip,
-  Tooltip,
   Button,
   Collapse,
 } from "@mui/material";
@@ -44,63 +42,6 @@ function truncateMiddle(str, visible = 6) {
   if (!str) return "";
   if (str.length <= visible * 2 + 3) return str;
   return `${str.slice(0, visible)}…${str.slice(-visible)}`;
-}
-
-function formatScalarForYaml(v) {
-  if (v === null) return "null";
-  if (typeof v === "boolean") return v ? "true" : "false";
-  if (typeof v === "number") return String(v);
-  if (typeof v === "string") {
-    if (v === "" || /\s/.test(v) || /[:{}[\],&*#?|<>=!%@`]/.test(v)) {
-      const escaped = v.replace(/"/g, '\\"');
-      return `"${escaped}"`;
-    }
-    return v;
-  }
-  return String(v);
-}
-
-function jsonToYaml(value, indent = 0) {
-  const ind = "  ".repeat(indent);
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) return ind + "[]";
-    return value
-      .map((item) => {
-        if (item && typeof item === "object") {
-          const child = jsonToYaml(item, indent + 1);
-          const lines = child.split("\n");
-          const [first, ...rest] = lines;
-          let out = `${ind}- ${first.trimStart()}`;
-          if (rest.length) {
-            out += "\n" + rest.map((l) => (l.startsWith("  ") ? ind + l : ind + "  " + l.trimStart())).join("\n");
-          }
-          return out;
-        }
-        return `${ind}- ${formatScalarForYaml(item)}`;
-      })
-      .join("\n");
-  }
-
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value);
-    if (!entries.length) return ind + "{}";
-    return entries
-      .map(([k, v]) => {
-        if (v && typeof v === "object") {
-          const child = jsonToYaml(v, indent + 1);
-          const lines = child.split("\n");
-          if (lines.length === 1 && !Array.isArray(v)) {
-            return `${ind}${k}: ${lines[0].trim()}`;
-          }
-          return `${ind}${k}:\n${child}`;
-        }
-        return `${ind}${k}: ${formatScalarForYaml(v)}`;
-      })
-      .join("\n");
-  }
-
-  return ind + formatScalarForYaml(value);
 }
 
 function buildSteps(txDetails) {
@@ -171,7 +112,7 @@ function buildSteps(txDetails) {
   ];
 }
 
-function StepItem({ index, step, addressBook }) {
+function StepItem({ index, step, addressBook, addresses }) {
   const title = step.title || step.name || step.action || `Step ${index + 1}`;
   const to = step.to || step.recipient || step.target || null;
   const value = step.value ?? step.amount ?? null;
@@ -198,6 +139,17 @@ function StepItem({ index, step, addressBook }) {
 
   const args =
     step.rawArgs ?? step.args ?? step.parameters ?? step.params ?? step.contractArgs ?? step.contract_args ?? null;
+
+  const contractAddressKey = step.contract_address_key || step.contractAddressKey || null;
+  const contractType = step.contract_type || step.contractType || null;
+
+  const contractTarget = (step.contract && step.contract.target) || step.contract_target || null;
+  const resolvedContractAddress =
+    contractTarget || (contractAddressKey && addresses && addresses[contractAddressKey]) || null;
+  const resolvedContractName =
+    resolvedContractAddress && addressBook ? addressBook[resolvedContractAddress] : undefined;
+
+  const parsedArgs = step.parsedArguments || step.parsed_args || null;
 
   return (
     <Box
@@ -247,6 +199,22 @@ function StepItem({ index, step, addressBook }) {
               </Typography>
             )}
 
+            {contractAddressKey && (
+              <Typography variant="caption" color="text.secondary">
+                Contract key:{" "}
+                <Typography component="span" variant="caption" sx={{ fontFamily: "monospace" }}>
+                  {contractAddressKey}
+                  {contractType ? ` (${contractType})` : ""}
+                </Typography>
+              </Typography>
+            )}
+
+            {resolvedContractAddress && (
+              <Typography variant="caption" color="text.secondary">
+                Contract addr: <Address address={resolvedContractAddress} displayName={resolvedContractName} />
+              </Typography>
+            )}
+
             {method && (
               <Typography variant="caption" color="text.secondary">
                 Method:{" "}
@@ -283,6 +251,24 @@ function StepItem({ index, step, addressBook }) {
                 {typeof args === "string" ? args : JSON.stringify(args, null, 2)}
               </Box>
             )}
+
+            {parsedArgs != null && (
+              <Box
+                component="pre"
+                sx={{
+                  mt: 0.5,
+                  fontSize: "0.7rem",
+                  fontFamily: "monospace",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  backgroundColor: "rgba(255,255,255,0.02)",
+                  borderRadius: 1,
+                  p: 1,
+                }}
+              >
+                {typeof parsedArgs === "string" ? parsedArgs : JSON.stringify(parsedArgs, null, 2)}
+              </Box>
+            )}
           </Stack>
         </Box>
       </Stack>
@@ -290,7 +276,7 @@ function StepItem({ index, step, addressBook }) {
   );
 }
 
-function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addressBook }) {
+function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress, txKey, addressBook }) {
   const [showYaml, setShowYaml] = React.useState(false);
   const [showJson, setShowJson] = React.useState(false);
 
@@ -320,33 +306,58 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
   const hasTimelockBadge =
     !!timelock && ((timelock.delay && String(timelock.delay) !== "min") || !!timelock.execution_relay);
 
-  const titleDescription = txDetails?.description || "Multisig transaction";
-
-  const rawYaml = jsonToYaml(txDetails || {});
+  const rawYaml = txDetails?.original_yaml || "";
   const rawJson = JSON.stringify(txDetails || {}, null, 2);
 
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="h6" sx={{ fontWeight: 600 }} gutterBottom>
-        {titleDescription}
-      </Typography>
+  const showTxMeta = Boolean(transaction);
 
+  const confirmationsCount = transaction?.confirmations?.length ?? 0;
+  const confirmationsRequired = transaction?.confirmationsRequired ?? null;
+
+  const signers = Array.isArray(transaction?.confirmations) ? transaction.confirmations : [];
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+        mx: "auto",
+      }}
+    >
       <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 0.6, fontWeight: 600 }}>
         Transaction details
       </Typography>
 
-      {safeTxHash && (
-        <Box sx={{ mb: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            safeTxHash:{" "}
-            <Box component="span" sx={{ fontFamily: "monospace", wordBreak: "break-all" }}>
-              {safeTxHash}
-            </Box>
-          </Typography>
-        </Box>
-      )}
+      <Stack spacing={0.5} sx={{ mb: 1.5, mt: 0.5 }}>
+        {showTxMeta && (
+          <>
+            <Typography variant="caption" color="text.secondary">
+              Nonce:{" "}
+              <Typography component="span" variant="caption" sx={{ fontFamily: "monospace" }}>
+                {transaction.nonce}
+              </Typography>
+            </Typography>
 
-      <Stack spacing={0.5} sx={{ mb: 1.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              Confirmations:{" "}
+              <Typography component="span" variant="caption" sx={{ fontFamily: "monospace" }}>
+                {confirmationsRequired != null
+                  ? `${confirmationsCount}/${confirmationsRequired}`
+                  : String(confirmationsCount)}
+              </Typography>
+            </Typography>
+
+            {transaction.modified && (
+              <Typography variant="caption" color="text.secondary">
+                Modified:{" "}
+                <Typography component="span" variant="caption" sx={{ fontFamily: "monospace" }}>
+                  {transaction.modified}
+                </Typography>
+              </Typography>
+            )}
+          </>
+        )}
+
         {networks && (
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Typography variant="caption" color="text.secondary">
@@ -377,7 +388,10 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
         {timelock && (
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Typography variant="caption" color="text.secondary">
-              Timelock: delay={String(timelock.delay || "n/a")}
+              Timelock: delay:{" "}
+              <Typography component="span" variant="caption" sx={{ fontFamily: "monospace" }}>
+                {String(timelock.delay)}
+              </Typography>
               {timelockRelayAddress && (
                 <>
                   {" "}
@@ -402,6 +416,30 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
             Contract target: <Address address={contractTarget} displayName={contractTargetName} />
           </Typography>
         )}
+
+        {showTxMeta && (
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              Signers:
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap" }}>
+              {signers.length === 0 && (
+                <Typography variant="caption" color="text.secondary">
+                  No signatures yet
+                </Typography>
+              )}
+              {signers.map((signer) => (
+                <Chip
+                  key={signer.owner}
+                  size="small"
+                  label={addressBook[signer.owner] || signer.owner}
+                  variant="outlined"
+                  sx={{ height: 24, fontSize: "0.7rem" }}
+                />
+              ))}
+            </Stack>
+          </Box>
+        )}
       </Stack>
 
       <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 0.6, fontWeight: 600 }}>
@@ -411,7 +449,13 @@ function DetailsPanel({ txDetails, safeTxHash, chainId, safeAddress, txKey, addr
       {steps.length ? (
         <Stack spacing={1} sx={{ mt: 0.5 }}>
           {steps.map((step, index) => (
-            <StepItem key={step.id || index} index={index} step={step} addressBook={addressBook} />
+            <StepItem
+              key={step.id || index}
+              index={index}
+              step={step}
+              addressBook={addressBook}
+              addresses={txDetails?.addresses}
+            />
           ))}
         </Stack>
       ) : (
@@ -540,6 +584,7 @@ function TransactionCard({
     return (
       <DetailsPanel
         txDetails={txDetails}
+        transaction={transaction}
         safeTxHash={safeTxHashProp}
         chainId={chainId}
         safeAddress={safeAddress}
@@ -557,21 +602,11 @@ function TransactionCard({
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <Paper variant="outlined" sx={{ p: 2 }}>
-                  <Skeleton variant="text" width="80%" />
-                  <Skeleton variant="text" width="40%" />
-                  <Skeleton variant="text" width="60%" />
-                </Paper>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <Paper variant="outlined" sx={{ p: 2 }}>
-                  <Skeleton variant="text" width="50%" />
-                  <Skeleton variant="rectangular" height={80} />
-                </Paper>
-              </Grid>
-            </Grid>
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Skeleton variant="text" width="80%" />
+              <Skeleton variant="text" width="40%" />
+              <Skeleton variant="text" width="60%" />
+            </Paper>
 
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Skeleton variant="text" width="30%" />
@@ -594,18 +629,14 @@ function TransactionCard({
             <Typography>{txKey}</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <Paper variant="outlined" sx={{ p: 2 }}>
-                  <Typography color="text.secondary">
-                    No changeset found for transaction{" "}
-                    <a href={safeUrl} target="_blank" rel="noopener noreferrer">
-                      {transaction.safeTxHash || txKey}
-                    </a>
-                  </Typography>
-                </Paper>
-              </Grid>
-            </Grid>
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Typography color="text.secondary">
+                No changeset found for transaction{" "}
+                <a href={safeUrl} target="_blank" rel="noopener noreferrer">
+                  {transaction.safeTxHash || txKey}
+                </a>
+              </Typography>
+            </Paper>
           </AccordionDetails>
         </Accordion>
       );
@@ -673,46 +704,15 @@ function TransactionCard({
         </Stack>
       </AccordionSummary>
       <AccordionDetails>
-        <Stack spacing={2}>
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ height: "100%", p: 2 }} variant="outlined">
-                <Typography>
-                  Nonce: {transaction.nonce} <br />
-                  Confirmations: {`${transaction.confirmations?.length}/${transaction.confirmationsRequired}`} <br />
-                  Modified: {transaction.modified}
-                </Typography>
-              </Paper>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ height: "100%", width: "100%", p: 2 }} variant="outlined">
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <Typography variant="h6">Signers</Typography>
-                  </Grid>
-                  <Grid item xs={12} sx={{ margin: "0 10%" }}>
-                    <Stack direction="column" spacing={1}>
-                      {transaction.confirmations.length === 0 && <Typography>No signatures yet</Typography>}
-                      {transaction.confirmations.map((signer) => (
-                        <Address key={signer.owner} address={signer.owner} displayName={addressBook[signer.owner]} />
-                      ))}
-                    </Stack>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
-          </Grid>
-
-          <DetailsPanel
-            txDetails={txDetails}
-            safeTxHash={transaction.safeTxHash}
-            chainId={chainId}
-            safeAddress={safeAddress}
-            txKey={txKey}
-            addressBook={addressBook}
-          />
-        </Stack>
+        <DetailsPanel
+          txDetails={txDetails}
+          transaction={transaction}
+          safeTxHash={transaction.safeTxHash}
+          chainId={chainId}
+          safeAddress={safeAddress}
+          txKey={txKey}
+          addressBook={addressBook}
+        />
       </AccordionDetails>
     </Accordion>
   );
