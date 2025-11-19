@@ -429,13 +429,7 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
                 </Typography>
               )}
               {signers.map((signer) => (
-                <Chip
-                  key={signer.owner}
-                  size="small"
-                  label={addressBook[signer.owner] || signer.owner}
-                  variant="outlined"
-                  sx={{ height: 24, fontSize: "0.7rem" }}
-                />
+                <Address key={signer.owner} address={signer.owner} displayName={addressBook[signer.owner]} />
               ))}
             </Stack>
           </Box>
