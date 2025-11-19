@@ -365,6 +365,10 @@ function TransactionCard({
     queryKey: [KEY_TRANSACTION_DETAILS, txKey],
     enabled: shouldFetchDetails,
     queryFn: async () => getTransactionDetails(transaction.safeTxHash),
+    retry: (failureCount, err) => {
+      if (readOnly && err?.status === 404) return false;
+      return failureCount < 1;
+    },
   });
 
   const addressBookResponse = useQuery({
@@ -429,7 +433,7 @@ function TransactionCard({
   if (shouldFetchDetails && txDetailsResponse.isError) {
     if (txDetailsResponse.error?.status === 404) {
       const chainPrefix = chainPrefixFromId(chainId);
-      const safeIdPart = `multisig_${safeAddress}_${txKey}`;
+      const safeIdPart = `multisig_${safeAddress}_${transaction.safeTxHash}`;
       const safeUrl = `https://app.safe.global/transactions/tx?safe=${chainPrefix}:${safeAddress}&id=${safeIdPart}`;
       return (
         <Accordion elevation={2}>
@@ -443,7 +447,7 @@ function TransactionCard({
                   <Typography color="text.secondary">
                     No changeset found for transaction{" "}
                     <a href={safeUrl} target="_blank" rel="noopener noreferrer">
-                      {txKey}
+                      {transaction.safeTxHash || txKey}
                     </a>
                   </Typography>
                 </Paper>
