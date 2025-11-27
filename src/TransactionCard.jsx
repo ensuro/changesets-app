@@ -488,7 +488,7 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
                       key={r.key}
                       sx={{
                         display: "grid",
-                        gridTemplateColumns: { xs: "1fr", sm: "minmax(120px, 210px) 1fr" },
+                        gridTemplateColumns: { sm: "minmax(0, max-content) minmax(0, 1fr)" },
                         columnGap: { xs: 0, sm: 2 },
                         rowGap: { xs: 0.25, sm: 0 },
                         alignItems: "start",
