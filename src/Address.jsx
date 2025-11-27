@@ -1,5 +1,5 @@
 import React from "react";
-import { Typography, Popover, Link, Stack } from "@mui/material";
+import { Typography, Popover, Link } from "@mui/material";
 import Chip from "@mui/material/Chip";
 import { shortAddress } from "./utils";
 import { explorerAddressUrl } from "./chain-utils";
@@ -9,11 +9,7 @@ function Address({ displayName = null, address }) {
   const [popAnchor, setPopAnchor] = React.useState(null);
   const { chainId } = useSafe();
 
-  const handlePopoverOpen = (event) => setPopAnchor(event.currentTarget);
-  const handlePopoverClose = () => setPopAnchor(null);
-
   const popOpen = Boolean(popAnchor);
-
   const url = explorerAddressUrl(chainId, address);
 
   return (
@@ -22,7 +18,8 @@ function Address({ displayName = null, address }) {
         label={displayName || shortAddress(address)}
         aria-owns={popOpen ? "address-popover" : undefined}
         aria-haspopup="true"
-        onClick={handlePopoverOpen}
+        onClick={(e) => setPopAnchor(e.currentTarget)}
+        onDelete={undefined}
         variant="outlined"
         sx={{ height: 26, borderRadius: 2 }}
       />
@@ -32,24 +29,26 @@ function Address({ displayName = null, address }) {
         anchorEl={popAnchor}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
-        onClose={handlePopoverClose}
+        onClose={() => setPopAnchor(null)}
         disableRestoreFocus
         slotProps={{ paper: { sx: { p: 1, borderRadius: 2, maxWidth: 520 } } }}
       >
-        <Stack spacing={0.75}>
-          <Typography sx={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>{address}</Typography>
-          {url && (
+        <Typography sx={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>
+          {url ? (
             <Link
               href={url}
               target="_blank"
               rel="noopener noreferrer"
               underline="hover"
               sx={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}
+              onClick={() => setPopAnchor(null)}
             >
-              {url}
+              {address}
             </Link>
+          ) : (
+            address
           )}
-        </Stack>
+        </Typography>
       </Popover>
     </>
   );
