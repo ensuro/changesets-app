@@ -94,14 +94,9 @@ function buildChangesetTransforms({ addresses, addressBook }) {
     return { kind: "text", value: value != null ? String(value) : "" };
   };
 
-  const getBucket = (value, parsedValue = null) => {
+  const getBucket = (value) => {
     const label = value != null ? String(value) : "";
-    if (parsedValue == null || parsedValue === "" || String(parsedValue) === label) {
-      return { kind: "text", value: label };
-    }
-    const pv = typeof parsedValue === "string" ? parsedValue : String(parsedValue);
-    const suffix = pv.startsWith("0x") ? truncateMiddle(pv, 10) : truncateMiddle(pv, 12);
-    return { kind: "text", value: `${label} (${suffix})` };
+    return { kind: "text", value: label };
   };
 
   return {
@@ -488,21 +483,21 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
                   Arguments:
                 </Typography>
 
-                <Stack spacing={0.35}>
+                <Box sx={{ display: "grid", rowGap: 0.6 }}>
                   {rows.map((r) => (
                     <Box
                       key={r.key}
                       sx={{
-                        display: "flex",
-                        alignItems: "baseline",
-                        gap: 1.25,
+                        display: "grid",
+                        gridTemplateColumns: "320px 1fr",
+                        columnGap: 2,
+                        alignItems: "start",
                         minWidth: 0,
                       }}
                     >
-                      <Box
+                      <Typography
+                        variant="body2"
                         sx={{
-                          minWidth: 115,
-                          maxWidth: 180,
                           fontFamily: "monospace",
                           fontSize: "0.75rem",
                           color: "text.secondary",
@@ -512,14 +507,17 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
                         }}
                         title={`${r.name}${r.type ? ` (${r.type})` : ""}`}
                       >
-                        {r.name}
-                        {r.type ? <Box component="span" sx={{ opacity: 0.75 }}>{` (${r.type})`}</Box> : null}:
-                      </Box>
+                        <Box component="span">{r.name} </Box>
+                        <Box component="span" sx={{ opacity: 0.7 }}>
+                          ({r.type || "raw"})
+                        </Box>
+                        <Box component="span">:</Box>
+                      </Typography>
 
-                      <Box sx={{ flex: 1, minWidth: 0 }}>{renderTransformedValue(r.tv)}</Box>
+                      <Box sx={{ minWidth: 0 }}>{renderTransformedValue(r.tv)}</Box>
                     </Box>
                   ))}
-                </Stack>
+                </Box>
               </Box>
             )}
           </Stack>
