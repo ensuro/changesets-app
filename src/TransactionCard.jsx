@@ -20,23 +20,11 @@ import {
 import { useQuery } from "@tanstack/react-query";
 
 import { KEY_TRANSACTION_DETAILS, KEY_ADDRESS_BOOK, getAddressBook, getTransactionDetails } from "./safe-api";
+import { chainPrefixFromId } from "./chain-utils";
 import Address from "./Address";
 import { useWallet } from "./wallet";
 import { useSafe } from "./safe-ui";
 import WalletActionButton from "./WalletActionButton";
-
-function chainPrefixFromId(chainId) {
-  switch (Number(chainId)) {
-    case 1:
-      return "eth";
-    case 137:
-      return "matic";
-    case 42161:
-      return "arb1";
-    default:
-      return String(chainId);
-  }
-}
 
 function truncateMiddle(str, visible = 6) {
   if (!str) return "";
@@ -317,13 +305,7 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
   const signers = Array.isArray(transaction?.confirmations) ? transaction.confirmations : [];
 
   return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: 2,
-        mx: "auto",
-      }}
-    >
+    <Paper variant="outlined" sx={{ p: 2, mx: "auto" }}>
       <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 0.6, fontWeight: 600 }}>
         Transaction details
       </Typography>
@@ -540,7 +522,6 @@ function TransactionCard({
   const txKey = hasTransaction
     ? transaction.safeTxHash || transaction.transactionHash || transaction.txHash
     : safeTxHashProp;
-
   const shouldFetchDetails = !txDetailsProp && hasTransaction && !!transaction.safeTxHash;
 
   const txDetailsResponse = useQuery({
@@ -649,7 +630,6 @@ function TransactionCard({
   const alreadySigned = transaction.confirmations
     .map((c) => c.owner?.toLowerCase())
     .includes(curAccount?.toLowerCase());
-
   const signEnabled = !alreadySigned && isOwner;
 
   return (
@@ -672,10 +652,7 @@ function TransactionCard({
                 <Typography
                   variant="caption"
                   color="text.secondary"
-                  sx={{
-                    fontFamily: "monospace",
-                    wordBreak: "break-all",
-                  }}
+                  sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
                 >
                   {transaction.safeTxHash}
                 </Typography>
