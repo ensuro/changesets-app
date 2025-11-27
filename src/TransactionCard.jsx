@@ -44,46 +44,13 @@ function safeJsonStringify(v, space = 2) {
   }
 }
 
-function normalizeArgItems(args) {
-  if (args == null) return [];
-
-  if (Array.isArray(args)) {
-    return args.map((a, i) => {
-      if (a && typeof a === "object" && !Array.isArray(a)) {
-        const name = a.name ?? a.argName ?? a.key ?? null;
-        const type = a.type ?? a.argType ?? a.kind ?? null;
-        const value = a.value !== undefined ? a.value : a;
-        return { name, type, value, index: i };
-      }
-      return { name: null, type: null, value: a, index: i };
-    });
-  }
-
-  if (typeof args === "object") {
-    return Object.entries(args).map(([k, v], i) => ({ name: k, type: null, value: v, index: i }));
-  }
-
-  return [{ name: null, type: null, value: args, index: 0 }];
-}
-
-function pickTransformPayload(obj, key) {
-  if (!obj || typeof obj !== "object") return null;
-  if (obj[key] !== undefined) return obj[key];
-  if (obj.type === key) {
-    if (obj.value !== undefined) return obj.value;
-    if (obj[key] !== undefined) return obj[key];
-    return obj;
-  }
-  return null;
-}
-
 function buildChangesetTransforms({ addresses, addressBook }) {
   const getAddressFromKeyOrAddress = (value) => {
     const resolved = addresses?.[value] || value;
     if (isHexAddress(resolved)) {
       return { kind: "address", value: resolved, displayName: addressBook?.[resolved] };
     }
-    return { kind: "text", value: resolved };
+    return { kind: "text", value: resolved ?? "" };
   };
 
   const getRole = (value) => {
@@ -91,7 +58,7 @@ function buildChangesetTransforms({ addresses, addressBook }) {
       const role = value.role ?? value.key ?? value.value ?? value.name ?? value.id;
       return { kind: "text", value: role != null ? String(role) : safeJsonStringify(value, 0) };
     }
-    return { kind: "text", value: String(value) };
+    return { kind: "text", value: value != null ? String(value) : "" };
   };
 
   const getComponentRole = (value) => {
@@ -114,7 +81,7 @@ function buildChangesetTransforms({ addresses, addressBook }) {
       if (key != null) return { kind: "text", value: String(key) };
       return { kind: "text", value: safeJsonStringify(value, 0) };
     }
-    return { kind: "text", value: String(value) };
+    return { kind: "text", value: value != null ? String(value) : "" };
   };
 
   return {
@@ -123,25 +90,6 @@ function buildChangesetTransforms({ addresses, addressBook }) {
     component_role: (value) => getComponentRole(value),
     enum: (value) => getEnumValue(value),
   };
-}
-
-function transformValue(value, transforms) {
-  if (value == null) return { kind: "text", value: "" };
-
-  if (Array.isArray(value)) {
-    return { kind: "list", value: value.map((v) => transformValue(v, transforms)) };
-  }
-
-  if (typeof value === "object") {
-    for (const k of Object.keys(transforms)) {
-      const payload = pickTransformPayload(value, k);
-      if (payload !== null) return transforms[k](payload);
-    }
-    return { kind: "json", value };
-  }
-
-  if (isHexAddress(value)) return { kind: "address", value };
-  return { kind: "text", value: String(value) };
 }
 
 function renderTransformedValue(v) {
@@ -185,44 +133,129 @@ function renderTransformedValue(v) {
   );
 }
 
-function argTypeFromParsed(item) {
-  if (!item || typeof item !== "object") return null;
+function transformFallback(value) {
+  if (value == null) return { kind: "text", value: "" };
+  if (Array.isArray(value)) return { kind: "list", value: value.map(transformFallback) };
+  if (typeof value === "object") return { kind: "json", value };
+  if (isHexAddress(value)) return { kind: "address", value };
+  return { kind: "text", value: String(value) };
+}
 
-  if (item.type && typeof item.type === "string") return item.type;
+function transformArg({ spec, parsed, transforms }) {
+  if (spec && typeof spec === "object" && !Array.isArray(spec) && spec.transform) {
+    const t = spec.transform;
+    const v = spec.value;
+    const fn = transforms?.[t];
+    if (fn) {
+      const tv = fn(v);
+      return { primary: tv, secondary: parsed };
+    }
+    return { primary: transformFallback(v), secondary: parsed };
+  }
 
-  if (item.enum) return item.enum;
-  if (item.type === "enum" && item.enum) return item.enum;
+  if (parsed !== undefined) {
+    return { primary: transformFallback(parsed), secondary: undefined };
+  }
 
-  if (item.address_key != null || item.type === "address_key") return "address";
-  if (item.component_role != null || item.type === "component_role") return "component_role";
-  if (item.role != null || item.type === "role") return "role";
+  return { primary: transformFallback(spec), secondary: undefined };
+}
 
+function getStepMethodName(step) {
+  return (
+    step?.method ||
+    step?.function ||
+    step?.functionName ||
+    step?.selector ||
+    step?.signature ||
+    step?.contractMethod ||
+    step?.contract_method ||
+    (step?.rawArgs && typeof step.rawArgs === "object"
+      ? step.rawArgs.method ||
+        step.rawArgs.function ||
+        step.rawArgs.fn ||
+        step.rawArgs.name ||
+        step.rawArgs.selector ||
+        step.rawArgs.signature
+      : null)
+  );
+}
+
+function getStepAbi(txDetails, step) {
+  const contractType = step?.contract_type || step?.contractType || null;
+  const methodName = getStepMethodName(step);
+  if (!contractType || !methodName) return null;
+  return txDetails?.abis?.[contractType]?.[methodName] || null;
+}
+
+function typeLabelFromSpecOrAbi({ spec, abiInput }) {
+  if (spec?.transform === "enum") {
+    const obj = spec.value;
+    if (obj && typeof obj === "object") {
+      return obj.enum || obj.name || "enum";
+    }
+    return "enum";
+  }
+  if (spec?.transform === "address_key") return "address";
+  if (spec?.transform === "component_role") return "component_role";
+  if (spec?.transform === "role") return "role";
+
+  if (abiInput?.type) return String(abiInput.type);
   return null;
 }
 
-function methodSignature(methodName, argItems) {
+function buildMethodSignature({ methodName, specs, abi }) {
   if (!methodName) return null;
 
-  const types = argItems
-    .map((a) => {
-      if (!a) return null;
+  const abiInputs = Array.isArray(abi?.inputs) ? abi.inputs : null;
 
-      if (a.type) {
-        if (a.type === "address_key") return "address";
-        if (a.type === "enum") {
-          const v = a.value;
-          if (v && typeof v === "object") return v.enum || v.name || "enum";
-          return "enum";
-        }
-        return a.type;
-      }
+  const count = Math.max(specs?.length || 0, abiInputs?.length || 0);
+  if (!count) return `${methodName}()`;
 
-      const inferred = argTypeFromParsed(a.value);
-      return inferred || null;
-    })
-    .filter(Boolean);
+  const types = Array.from({ length: count }).map((_, i) => {
+    const spec = specs?.[i];
+    const abiInput = abiInputs?.[i];
+    return typeLabelFromSpecOrAbi({ spec, abiInput }) || "unknown";
+  });
 
   return `${methodName}(${types.join(", ")})`;
+}
+
+function buildArgRows({ step, txDetails }) {
+  const specs = Array.isArray(step?.arguments) ? step.arguments : null;
+  const parsed = Array.isArray(step?.parsedArguments) ? step.parsedArguments : null;
+
+  const abi = getStepAbi(txDetails, step);
+  const abiInputs = Array.isArray(abi?.inputs) ? abi.inputs : null;
+
+  const count = Math.max(specs?.length || 0, parsed?.length || 0, abiInputs?.length || 0);
+
+  return Array.from({ length: count }).map((_, i) => {
+    const spec = specs?.[i];
+    const parsedValue = parsed?.[i];
+
+    const abiInput = abiInputs?.[i] || null;
+    const name = abiInput?.name || spec?.name || spec?.argName || null;
+
+    const type = typeLabelFromSpecOrAbi({ spec, abiInput });
+
+    return {
+      index: i,
+      name,
+      type,
+      spec,
+      parsed: parsedValue,
+    };
+  });
+}
+
+function renderSecondaryParsed({ secondary }) {
+  if (secondary === undefined || secondary === null) return null;
+  const asText = typeof secondary === "string" ? secondary : safeJsonStringify(secondary, 0);
+  return (
+    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1, fontFamily: "monospace" }}>
+      ({asText})
+    </Typography>
+  );
 }
 
 function buildSteps(txDetails) {
@@ -271,7 +304,6 @@ function buildSteps(txDetails) {
 
   const summary = txDetails.summary || null;
   const description = txDetails.description || null;
-
   const title = summary || description || "Transaction";
 
   const to = txDetails.to || txDetails.target || null;
@@ -293,35 +325,14 @@ function buildSteps(txDetails) {
   ];
 }
 
-function StepItem({ index, step, addressBook, addresses }) {
-  const title = step.title || step.name || step.action || `Step ${index + 1}`;
+function StepItem({ index, step, addressBook, addresses, txDetails }) {
+  const title = step.title || step.name || step.action || step.description || `Step ${index + 1}`;
+
   const to = step.to || step.recipient || step.target || null;
+  const displayName = to && addressBook ? addressBook[to] : undefined;
   const value = step.value ?? step.amount ?? null;
   const token = step.token || step.tokenSymbol || step.asset || null;
-  const summary = step.summary || step.description || null;
-  const displayName = to && addressBook ? addressBook[to] : undefined;
-
-  const methodName =
-    step.method ||
-    step.function ||
-    step.functionName ||
-    step.selector ||
-    step.signature ||
-    step.contractMethod ||
-    step.contract_method ||
-    (step.rawArgs && typeof step.rawArgs === "object"
-      ? step.rawArgs.method ||
-        step.rawArgs.function ||
-        step.rawArgs.fn ||
-        step.rawArgs.name ||
-        step.rawArgs.selector ||
-        step.rawArgs.signature
-      : null);
-
-  const argsRaw =
-    step.rawArgs ?? step.args ?? step.parameters ?? step.params ?? step.contractArgs ?? step.contract_args ?? null;
-
-  const parsedArgs = step.parsedArguments || step.parsed_args || null;
+  const summary = step.summary || null;
 
   const contractAddressKey = step.contract_address_key || step.contractAddressKey || null;
   const contractType = step.contract_type || step.contractType || null;
@@ -332,12 +343,22 @@ function StepItem({ index, step, addressBook, addresses }) {
   const resolvedContractName =
     resolvedContractAddress && addressBook ? addressBook[resolvedContractAddress] : undefined;
 
-  const argItems = normalizeArgItems(parsedArgs ?? argsRaw);
+  const methodName = getStepMethodName(step);
+
   const transforms = React.useMemo(
     () => buildChangesetTransforms({ addresses, addressBook }),
     [addresses, addressBook]
   );
-  const signature = methodSignature(methodName, argItems);
+
+  const argRows = React.useMemo(() => buildArgRows({ step, txDetails }), [step, txDetails]);
+
+  const signature = React.useMemo(() => {
+    const specs = Array.isArray(step?.arguments) ? step.arguments : null;
+    const abi = getStepAbi(txDetails, step);
+    return buildMethodSignature({ methodName, specs, abi });
+  }, [methodName, step, txDetails]);
+
+  const hasAnyArgs = argRows.some((r) => r.spec !== undefined || r.parsed !== undefined) && argRows.length > 0;
 
   return (
     <Box
@@ -422,23 +443,33 @@ function StepItem({ index, step, addressBook, addresses }) {
               </Typography>
             )}
 
-            {argItems.length > 0 && (
+            {hasAnyArgs && (
               <Box sx={{ mt: 0.5 }}>
                 <Typography variant="caption" color="text.secondary">
                   Arguments:
                 </Typography>
 
                 <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-                  {argItems.map((a) => {
-                    const label = a.name
-                      ? `${a.name}${a.type ? ` (${a.type})` : ""}`
-                      : a.type
-                      ? a.type
-                      : `arg${a.index}`;
-                    const tv = transformValue(a.value, transforms);
+                  {argRows.map((row) => {
+                    // Build a nice label:
+                    const label = row.name
+                      ? `${row.name}${row.type ? ` (${row.type})` : ""}`
+                      : row.type
+                      ? row.type
+                      : `arg${row.index}`;
+
+                    const { primary, secondary } = transformArg({
+                      spec: row.spec,
+                      parsed: row.parsed,
+                      transforms,
+                    });
+
+                    const showSecondary =
+                      secondary !== undefined && (row.spec?.transform === "enum" || primary.kind !== "address");
+
                     return (
                       <Stack
-                        key={`${a.index}-${label}`}
+                        key={`${row.index}-${label}`}
                         direction="row"
                         spacing={1}
                         alignItems="flex-start"
@@ -447,11 +478,14 @@ function StepItem({ index, step, addressBook, addresses }) {
                         <Typography
                           variant="caption"
                           color="text.secondary"
-                          sx={{ minWidth: 140, fontFamily: "monospace" }}
+                          sx={{ minWidth: 170, fontFamily: "monospace" }}
                         >
                           {label}:
                         </Typography>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>{renderTransformedValue(tv)}</Box>
+                        <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", flexWrap: "wrap" }}>
+                          {renderTransformedValue(primary)}
+                          {showSecondary && renderSecondaryParsed({ secondary })}
+                        </Box>
                       </Stack>
                     );
                   })}
@@ -459,7 +493,7 @@ function StepItem({ index, step, addressBook, addresses }) {
               </Box>
             )}
 
-            {parsedArgs == null && argsRaw != null && (
+            {!hasAnyArgs && step.rawArgs != null && (
               <Box
                 component="pre"
                 sx={{
@@ -473,7 +507,7 @@ function StepItem({ index, step, addressBook, addresses }) {
                   p: 1,
                 }}
               >
-                {typeof argsRaw === "string" ? argsRaw : safeJsonStringify(argsRaw, 2)}
+                {typeof step.rawArgs === "string" ? step.rawArgs : safeJsonStringify(step.rawArgs, 2)}
               </Box>
             )}
           </Stack>
@@ -520,7 +554,6 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
 
   const confirmationsCount = transaction?.confirmations?.length ?? 0;
   const confirmationsRequired = transaction?.confirmationsRequired ?? null;
-
   const signers = Array.isArray(transaction?.confirmations) ? transaction.confirmations : [];
 
   return (
@@ -650,6 +683,7 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
               step={step}
               addressBook={addressBook}
               addresses={txDetails?.addresses}
+              txDetails={txDetails}
             />
           ))}
         </Stack>
@@ -660,7 +694,7 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
       )}
 
       <Stack direction="row" spacing={1} sx={{ mt: 1.5, mb: 1 }} alignItems="center" justifyContent="space-between">
-        <Box>
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
           {safeUrl && (
             <Button
               size="small"
