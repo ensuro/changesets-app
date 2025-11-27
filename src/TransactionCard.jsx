@@ -15,7 +15,7 @@ import {
   Chip,
   Button,
   Collapse,
-  Link,
+  Link as MuiLink,
 } from "@mui/material";
 
 import { useQuery } from "@tanstack/react-query";
@@ -45,11 +45,15 @@ function safeJsonStringify(v, space = 2) {
   }
 }
 
+function cleanTypeLabel(t) {
+  if (!t) return null;
+  return String(t).trim().replace(/\s+/g, " ");
+}
+
 function buildChangesetTransforms({ addresses, addressBook }) {
   const getAddressFromKeyOrAddress = (value, preferLabel = null) => {
     const resolved = (addresses && value != null ? addresses[value] : null) || value;
     if (isHexAddress(resolved)) {
-      // Preferimos el label (ej: RM_IHE) cuando viene desde address_key
       const displayName = preferLabel || addressBook?.[resolved];
       return { kind: "address", value: resolved, displayName };
     }
@@ -90,25 +94,32 @@ function buildChangesetTransforms({ addresses, addressBook }) {
     return { kind: "text", value: value != null ? String(value) : "" };
   };
 
+  const getBucket = (value, parsedValue = null) => {
+    const label = value != null ? String(value) : "";
+    if (parsedValue == null || parsedValue === "" || String(parsedValue) === label) {
+      return { kind: "text", value: label };
+    }
+    const pv = typeof parsedValue === "string" ? parsedValue : String(parsedValue);
+    const suffix = pv.startsWith("0x") ? truncateMiddle(pv, 10) : truncateMiddle(pv, 12);
+    return { kind: "text", value: `${label} (${suffix})` };
+  };
+
   return {
     address_key: (value) => getAddressFromKeyOrAddress(value, typeof value === "string" ? value : null),
     role: (value) => getRole(value),
     component_role: (value) => getComponentRole(value),
     enum: (value, parsedValue = null) => getEnumValue(value, parsedValue),
+    bucket: (value, parsedValue = null) => getBucket(value, parsedValue),
   };
 }
 
-// Soporta objetos tipo { transform: "enum", value: {...} } (deploy-scripts)
 function transformArgumentSpec(spec, transforms, parsedValue = null) {
   if (!spec || typeof spec !== "object") return null;
   const t = spec.transform || spec.type || null;
   const v = spec.value !== undefined ? spec.value : spec;
 
-  if (t && transforms[t]) {
-    return transforms[t](v, parsedValue);
-  }
+  if (t && transforms[t]) return transforms[t](v, parsedValue);
 
-  // fallback razonable
   if (typeof v === "string" && isHexAddress(v)) return { kind: "address", value: v };
   if (Array.isArray(v)) return { kind: "list", value: v.map((x) => ({ kind: "text", value: String(x) })) };
   if (v && typeof v === "object") return { kind: "json", value: v };
@@ -125,7 +136,7 @@ function renderTransformedValue(v) {
   if (v.kind === "list") {
     const items = Array.isArray(v.value) ? v.value : [];
     return (
-      <Stack spacing={0.5} sx={{ mt: 0.25 }}>
+      <Stack spacing={0.35} sx={{ mt: 0.15 }}>
         {items.map((it, idx) => (
           <Box key={idx}>{renderTransformedValue(it)}</Box>
         ))}
@@ -161,11 +172,6 @@ function getFunctionAbi(abis, contractType, fnName) {
   return abis?.[contractType]?.[fnName] || null;
 }
 
-function cleanTypeLabel(t) {
-  if (!t) return null;
-  return String(t).trim().replace(/\s+/g, " ");
-}
-
 function inferSignatureTypes({ abiInputs, argsSpec, parsedArgs }) {
   const n = Math.max(
     Array.isArray(abiInputs) ? abiInputs.length : 0,
@@ -179,14 +185,18 @@ function inferSignatureTypes({ abiInputs, argsSpec, parsedArgs }) {
     const parsed = Array.isArray(parsedArgs) ? parsedArgs[i] : null;
     const inp = Array.isArray(abiInputs) ? abiInputs[i] : null;
 
-    // Preferimos enum name si el spec lo trae (más humano que uint8)
-    if (spec && typeof spec === "object" && (spec.transform || spec.type) === "enum") {
+    const specT = spec && typeof spec === "object" ? spec.transform || spec.type : null;
+
+    if (specT === "enum") {
       const enumName = spec?.value?.enum || spec?.value?.name;
       out.push(cleanTypeLabel(enumName || "enum"));
       continue;
     }
-
-    if (spec && typeof spec === "object" && (spec.transform || spec.type) === "address_key") {
+    if (specT === "bucket") {
+      out.push("bucket");
+      continue;
+    }
+    if (specT === "address_key") {
       out.push("address");
       continue;
     }
@@ -202,7 +212,6 @@ function inferSignatureTypes({ abiInputs, argsSpec, parsedArgs }) {
       continue;
     }
 
-    // fallback mínimo
     out.push(null);
   }
 
@@ -213,6 +222,17 @@ function formatMethodSignature(methodName, types) {
   if (!methodName) return null;
   const t = Array.isArray(types) ? types.map(cleanTypeLabel).filter(Boolean) : [];
   return `${methodName}(${t.join(", ")})`;
+}
+
+function defaultNameFromSpec(spec, i) {
+  const t = spec && typeof spec === "object" ? spec.transform || spec.type : null;
+  if (t === "bucket") return "bucket";
+  if (t === "address_key") return "address";
+  if (t === "role") return "role";
+  if (t === "component_role") return "component_role";
+  if (t === "enum") return spec?.value?.enum || "enum";
+  if (t) return String(t);
+  return `arg${i}`;
 }
 
 function buildArgumentRows({ abiInputs, argsSpec, parsedArgs, transforms }) {
@@ -228,22 +248,26 @@ function buildArgumentRows({ abiInputs, argsSpec, parsedArgs, transforms }) {
     const spec = Array.isArray(argsSpec) ? argsSpec[i] : null;
     const parsed = Array.isArray(parsedArgs) ? parsedArgs[i] : null;
 
-    const name = (inp?.name && String(inp.name).trim()) || (spec?.name && String(spec.name).trim()) || `arg${i}`;
+    const name =
+      (inp?.name && String(inp.name).trim()) ||
+      (spec?.name && String(spec.name).trim()) ||
+      (spec && typeof spec === "object" ? defaultNameFromSpec(spec, i) : `arg${i}`);
+
     const type =
       cleanTypeLabel(inp?.type) ||
       cleanTypeLabel(spec?.type) ||
       (spec?.transform ? cleanTypeLabel(spec.transform) : null);
 
-    // Preferimos el spec porque tiene info humana (enum keys, address_key, etc.)
     let tv = null;
     if (spec && typeof spec === "object") {
       tv = transformArgumentSpec(spec, transforms, parsed);
     } else if (parsed !== null && parsed !== undefined) {
-      // parsed raw
       if (typeof parsed === "string" && isHexAddress(parsed)) tv = { kind: "address", value: parsed };
       else tv = { kind: "text", value: String(parsed) };
     } else if (spec != null) {
       tv = { kind: "text", value: String(spec) };
+    } else {
+      tv = { kind: "text", value: "" };
     }
 
     rows.push({ key: `${i}-${name}`, name, type, tv });
@@ -371,11 +395,9 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
 
   const signatureTypes = inferSignatureTypes({ abiInputs, argsSpec, parsedArgs });
   const signature = methodName ? formatMethodSignature(methodName, signatureTypes) : null;
+  const signatureClean = methodName ? signature || `${methodName}()` : null;
 
   const rows = buildArgumentRows({ abiInputs, argsSpec, parsedArgs, transforms });
-
-  // Deja de mostrar "unknown": si no hay tipos, simplemente mostramos method()
-  const signatureClean = signature && /\(\s*\)/.test(signature) ? `${methodName}()` : signature;
 
   return (
     <Box
@@ -401,24 +423,24 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
             fontWeight: 600,
             color: "primary.main",
             flexShrink: 0,
-            mt: 0.15,
+            mt: 0.1,
           }}
         >
           {index + 1}
         </Box>
 
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.35 }}>
             {title}
           </Typography>
 
           {summary && (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.35 }}>
               {summary}
             </Typography>
           )}
 
-          <Stack spacing={0.35}>
+          <Stack spacing={0.25}>
             {to && (
               <Typography variant="caption" color="text.secondary">
                 To: <Address address={to} displayName={displayName} />
@@ -461,37 +483,40 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
             )}
 
             {rows.length > 0 && (
-              <Box sx={{ mt: 0.5 }}>
+              <Box sx={{ mt: 0.35 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.25 }}>
                   Arguments:
                 </Typography>
 
-                <Stack spacing={0.5} sx={{ mt: 0.25 }}>
+                <Stack spacing={0.35}>
                   {rows.map((r) => (
                     <Box
                       key={r.key}
                       sx={{
-                        display: "grid",
-                        gridTemplateColumns: "minmax(90px, 150px) 1fr",
-                        columnGap: 1.25,
-                        alignItems: "start",
+                        display: "flex",
+                        alignItems: "baseline",
+                        gap: 1.25,
+                        minWidth: 0,
                       }}
                     >
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ fontFamily: "monospace", whiteSpace: "nowrap" }}
+                      <Box
+                        sx={{
+                          minWidth: 115,
+                          maxWidth: 180,
+                          fontFamily: "monospace",
+                          fontSize: "0.75rem",
+                          color: "text.secondary",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                        title={`${r.name}${r.type ? ` (${r.type})` : ""}`}
                       >
                         {r.name}
-                        {r.type ? (
-                          <Typography component="span" variant="caption" sx={{ opacity: 0.75 }}>
-                            {` (${r.type})`}
-                          </Typography>
-                        ) : null}
-                        :
-                      </Typography>
+                        {r.type ? <Box component="span" sx={{ opacity: 0.75 }}>{` (${r.type})`}</Box> : null}:
+                      </Box>
 
-                      <Box sx={{ minWidth: 0 }}>{renderTransformedValue(r.tv)}</Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>{renderTransformedValue(r.tv)}</Box>
                     </Box>
                   ))}
                 </Stack>
@@ -544,7 +569,6 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
 
   const signers = Array.isArray(transaction?.confirmations) ? transaction.confirmations : [];
 
-  // opcional: link al YAML original (si viene commit_ref + original_path)
   const commitRef = txDetails?.commit_ref;
   const originalPath = txDetails?.original_path;
   const changesetSourceUrl =
@@ -556,7 +580,7 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
         Transaction details
       </Typography>
 
-      <Stack spacing={0.5} sx={{ mb: 1.5, mt: 0.5 }}>
+      <Stack spacing={0.4} sx={{ mb: 1.5, mt: 0.5 }}>
         {showTxMeta && (
           <>
             <Typography variant="caption" color="text.secondary">
@@ -709,7 +733,7 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
               size="small"
               variant="outlined"
               color="inherit"
-              component={Link}
+              component={MuiLink}
               href={changesetSourceUrl}
               target="_blank"
               rel="noopener noreferrer"
