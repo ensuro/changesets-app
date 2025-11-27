@@ -32,6 +32,199 @@ function truncateMiddle(str, visible = 6) {
   return `${str.slice(0, visible)}…${str.slice(-visible)}`;
 }
 
+function isHexAddress(v) {
+  return typeof v === "string" && /^0x[a-fA-F0-9]{40}$/.test(v);
+}
+
+function safeJsonStringify(v, space = 2) {
+  try {
+    return JSON.stringify(v, null, space);
+  } catch {
+    return String(v);
+  }
+}
+
+function normalizeArgItems(args) {
+  if (args == null) return [];
+
+  if (Array.isArray(args)) {
+    return args.map((a, i) => {
+      if (a && typeof a === "object" && !Array.isArray(a)) {
+        const name = a.name ?? a.argName ?? a.key ?? null;
+        const type = a.type ?? a.argType ?? a.kind ?? null;
+        const value = a.value !== undefined ? a.value : a;
+        return { name, type, value, index: i };
+      }
+      return { name: null, type: null, value: a, index: i };
+    });
+  }
+
+  if (typeof args === "object") {
+    return Object.entries(args).map(([k, v], i) => ({ name: k, type: null, value: v, index: i }));
+  }
+
+  return [{ name: null, type: null, value: args, index: 0 }];
+}
+
+function pickTransformPayload(obj, key) {
+  if (!obj || typeof obj !== "object") return null;
+  if (obj[key] !== undefined) return obj[key];
+  if (obj.type === key) {
+    if (obj.value !== undefined) return obj.value;
+    if (obj[key] !== undefined) return obj[key];
+    return obj;
+  }
+  return null;
+}
+
+function buildChangesetTransforms({ addresses, addressBook }) {
+  const getAddressFromKeyOrAddress = (value) => {
+    const resolved = addresses?.[value] || value;
+    if (isHexAddress(resolved)) {
+      return { kind: "address", value: resolved, displayName: addressBook?.[resolved] };
+    }
+    return { kind: "text", value: resolved };
+  };
+
+  const getRole = (value) => {
+    if (value && typeof value === "object") {
+      const role = value.role ?? value.key ?? value.value ?? value.name ?? value.id;
+      return { kind: "text", value: role != null ? String(role) : safeJsonStringify(value, 0) };
+    }
+    return { kind: "text", value: String(value) };
+  };
+
+  const getComponentRole = (value) => {
+    if (value && typeof value === "object") {
+      const component = value.component ?? value.address_key ?? value.addressKey ?? value.addr ?? value.address;
+      const role = value.role ?? value.key ?? value.value ?? value.name ?? value.id;
+      const comp = component != null ? getAddressFromKeyOrAddress(component) : null;
+      const roleTxt = role != null ? String(role) : "";
+      if (comp?.kind === "address") return { kind: "text", value: `${comp.value}:${roleTxt}` };
+      return { kind: "text", value: `${String(component)}:${roleTxt}` };
+    }
+    return { kind: "text", value: safeJsonStringify(value, 0) };
+  };
+
+  const getEnumValue = (value) => {
+    if (value && typeof value === "object") {
+      const enumName = value.enum || value.name || value.type;
+      const key = value.key ?? value.value ?? value.id ?? value.label;
+      if (enumName && key != null) return { kind: "text", value: `${enumName}.${String(key)}` };
+      if (key != null) return { kind: "text", value: String(key) };
+      return { kind: "text", value: safeJsonStringify(value, 0) };
+    }
+    return { kind: "text", value: String(value) };
+  };
+
+  return {
+    address_key: (value) => getAddressFromKeyOrAddress(value),
+    role: (value) => getRole(value),
+    component_role: (value) => getComponentRole(value),
+    enum: (value) => getEnumValue(value),
+  };
+}
+
+function transformValue(value, transforms) {
+  if (value == null) return { kind: "text", value: "" };
+
+  if (Array.isArray(value)) {
+    return { kind: "list", value: value.map((v) => transformValue(v, transforms)) };
+  }
+
+  if (typeof value === "object") {
+    for (const k of Object.keys(transforms)) {
+      const payload = pickTransformPayload(value, k);
+      if (payload !== null) return transforms[k](payload);
+    }
+    return { kind: "json", value };
+  }
+
+  if (isHexAddress(value)) return { kind: "address", value };
+  return { kind: "text", value: String(value) };
+}
+
+function renderTransformedValue(v) {
+  if (!v) return null;
+
+  if (v.kind === "address") {
+    return <Address address={v.value} displayName={v.displayName} />;
+  }
+
+  if (v.kind === "list") {
+    const items = Array.isArray(v.value) ? v.value : [];
+    return (
+      <Stack spacing={0.5} sx={{ mt: 0.25 }}>
+        {items.map((it, idx) => (
+          <Box key={idx}>{renderTransformedValue(it)}</Box>
+        ))}
+      </Stack>
+    );
+  }
+
+  if (v.kind === "json") {
+    return (
+      <Typography
+        component="span"
+        variant="caption"
+        sx={{ fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+      >
+        {safeJsonStringify(v.value, 2)}
+      </Typography>
+    );
+  }
+
+  return (
+    <Typography
+      component="span"
+      variant="caption"
+      sx={{ fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+    >
+      {String(v.value)}
+    </Typography>
+  );
+}
+
+function argTypeFromParsed(item) {
+  if (!item || typeof item !== "object") return null;
+
+  if (item.type && typeof item.type === "string") return item.type;
+
+  if (item.enum) return item.enum;
+  if (item.type === "enum" && item.enum) return item.enum;
+
+  if (item.address_key != null || item.type === "address_key") return "address";
+  if (item.component_role != null || item.type === "component_role") return "component_role";
+  if (item.role != null || item.type === "role") return "role";
+
+  return null;
+}
+
+function methodSignature(methodName, argItems) {
+  if (!methodName) return null;
+
+  const types = argItems
+    .map((a) => {
+      if (!a) return null;
+
+      if (a.type) {
+        if (a.type === "address_key") return "address";
+        if (a.type === "enum") {
+          const v = a.value;
+          if (v && typeof v === "object") return v.enum || v.name || "enum";
+          return "enum";
+        }
+        return a.type;
+      }
+
+      const inferred = argTypeFromParsed(a.value);
+      return inferred || null;
+    })
+    .filter(Boolean);
+
+  return `${methodName}(${types.join(", ")})`;
+}
+
 function buildSteps(txDetails) {
   if (!txDetails) return [];
 
@@ -108,7 +301,7 @@ function StepItem({ index, step, addressBook, addresses }) {
   const summary = step.summary || step.description || null;
   const displayName = to && addressBook ? addressBook[to] : undefined;
 
-  const method =
+  const methodName =
     step.method ||
     step.function ||
     step.functionName ||
@@ -125,8 +318,10 @@ function StepItem({ index, step, addressBook, addresses }) {
         step.rawArgs.signature
       : null);
 
-  const args =
+  const argsRaw =
     step.rawArgs ?? step.args ?? step.parameters ?? step.params ?? step.contractArgs ?? step.contract_args ?? null;
+
+  const parsedArgs = step.parsedArguments || step.parsed_args || null;
 
   const contractAddressKey = step.contract_address_key || step.contractAddressKey || null;
   const contractType = step.contract_type || step.contractType || null;
@@ -137,7 +332,12 @@ function StepItem({ index, step, addressBook, addresses }) {
   const resolvedContractName =
     resolvedContractAddress && addressBook ? addressBook[resolvedContractAddress] : undefined;
 
-  const parsedArgs = step.parsedArguments || step.parsed_args || null;
+  const argItems = normalizeArgItems(parsedArgs ?? argsRaw);
+  const transforms = React.useMemo(
+    () => buildChangesetTransforms({ addresses, addressBook }),
+    [addresses, addressBook]
+  );
+  const signature = methodSignature(methodName, argItems);
 
   return (
     <Box
@@ -203,11 +403,11 @@ function StepItem({ index, step, addressBook, addresses }) {
               </Typography>
             )}
 
-            {method && (
+            {signature && (
               <Typography variant="caption" color="text.secondary">
                 Method:{" "}
                 <Typography component="span" variant="caption" sx={{ fontFamily: "monospace" }}>
-                  {String(method)}
+                  {signature}
                 </Typography>
               </Typography>
             )}
@@ -222,29 +422,48 @@ function StepItem({ index, step, addressBook, addresses }) {
               </Typography>
             )}
 
-            {args != null && (
-              <Box
-                component="pre"
-                sx={{
-                  mt: 0.5,
-                  fontSize: "0.7rem",
-                  fontFamily: "monospace",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  backgroundColor: "rgba(255,255,255,0.02)",
-                  borderRadius: 1,
-                  p: 1,
-                }}
-              >
-                {typeof args === "string" ? args : JSON.stringify(args, null, 2)}
+            {argItems.length > 0 && (
+              <Box sx={{ mt: 0.5 }}>
+                <Typography variant="caption" color="text.secondary">
+                  Arguments:
+                </Typography>
+
+                <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                  {argItems.map((a) => {
+                    const label = a.name
+                      ? `${a.name}${a.type ? ` (${a.type})` : ""}`
+                      : a.type
+                      ? a.type
+                      : `arg${a.index}`;
+                    const tv = transformValue(a.value, transforms);
+                    return (
+                      <Stack
+                        key={`${a.index}-${label}`}
+                        direction="row"
+                        spacing={1}
+                        alignItems="flex-start"
+                        sx={{ flexWrap: "wrap" }}
+                      >
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ minWidth: 140, fontFamily: "monospace" }}
+                        >
+                          {label}:
+                        </Typography>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>{renderTransformedValue(tv)}</Box>
+                      </Stack>
+                    );
+                  })}
+                </Stack>
               </Box>
             )}
 
-            {parsedArgs != null && (
+            {parsedArgs == null && argsRaw != null && (
               <Box
                 component="pre"
                 sx={{
-                  mt: 0.5,
+                  mt: 0.75,
                   fontSize: "0.7rem",
                   fontFamily: "monospace",
                   whiteSpace: "pre-wrap",
@@ -254,7 +473,7 @@ function StepItem({ index, step, addressBook, addresses }) {
                   p: 1,
                 }}
               >
-                {typeof parsedArgs === "string" ? parsedArgs : JSON.stringify(parsedArgs, null, 2)}
+                {typeof argsRaw === "string" ? argsRaw : safeJsonStringify(argsRaw, 2)}
               </Box>
             )}
           </Stack>
