@@ -21,7 +21,6 @@ function Address({ displayName = null, address }) {
         onClick={(e) => setPopAnchor(e.currentTarget)}
         onDelete={undefined}
         variant="outlined"
-        sx={{ height: 26, borderRadius: 2 }}
       />
       <Popover
         id="address-popover"
@@ -31,7 +30,6 @@ function Address({ displayName = null, address }) {
         transformOrigin={{ vertical: "top", horizontal: "left" }}
         onClose={() => setPopAnchor(null)}
         disableRestoreFocus
-        slotProps={{ paper: { sx: { p: 1, borderRadius: 2, maxWidth: 520 } } }}
       >
         <Typography sx={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>
           {url ? (
