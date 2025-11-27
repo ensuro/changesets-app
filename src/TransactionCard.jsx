@@ -15,6 +15,7 @@ import {
   Chip,
   Button,
   Collapse,
+  Link,
 } from "@mui/material";
 
 import { useQuery } from "@tanstack/react-query";
@@ -45,12 +46,14 @@ function safeJsonStringify(v, space = 2) {
 }
 
 function buildChangesetTransforms({ addresses, addressBook }) {
-  const getAddressFromKeyOrAddress = (value) => {
-    const resolved = addresses?.[value] || value;
+  const getAddressFromKeyOrAddress = (value, preferLabel = null) => {
+    const resolved = (addresses && value != null ? addresses[value] : null) || value;
     if (isHexAddress(resolved)) {
-      return { kind: "address", value: resolved, displayName: addressBook?.[resolved] };
+      // Preferimos el label (ej: RM_IHE) cuando viene desde address_key
+      const displayName = preferLabel || addressBook?.[resolved];
+      return { kind: "address", value: resolved, displayName };
     }
-    return { kind: "text", value: resolved ?? "" };
+    return { kind: "text", value: resolved != null ? String(resolved) : "" };
   };
 
   const getRole = (value) => {
@@ -73,11 +76,14 @@ function buildChangesetTransforms({ addresses, addressBook }) {
     return { kind: "text", value: safeJsonStringify(value, 0) };
   };
 
-  const getEnumValue = (value) => {
+  const getEnumValue = (value, parsedValue = null) => {
     if (value && typeof value === "object") {
       const enumName = value.enum || value.name || value.type;
       const key = value.key ?? value.value ?? value.id ?? value.label;
-      if (enumName && key != null) return { kind: "text", value: `${enumName}.${String(key)}` };
+      if (enumName && key != null) {
+        const suffix = parsedValue != null && parsedValue !== "" ? ` (${String(parsedValue)})` : "";
+        return { kind: "text", value: `${enumName}.${String(key)}${suffix}` };
+      }
       if (key != null) return { kind: "text", value: String(key) };
       return { kind: "text", value: safeJsonStringify(value, 0) };
     }
@@ -85,11 +91,28 @@ function buildChangesetTransforms({ addresses, addressBook }) {
   };
 
   return {
-    address_key: (value) => getAddressFromKeyOrAddress(value),
+    address_key: (value) => getAddressFromKeyOrAddress(value, typeof value === "string" ? value : null),
     role: (value) => getRole(value),
     component_role: (value) => getComponentRole(value),
-    enum: (value) => getEnumValue(value),
+    enum: (value, parsedValue = null) => getEnumValue(value, parsedValue),
   };
+}
+
+// Soporta objetos tipo { transform: "enum", value: {...} } (deploy-scripts)
+function transformArgumentSpec(spec, transforms, parsedValue = null) {
+  if (!spec || typeof spec !== "object") return null;
+  const t = spec.transform || spec.type || null;
+  const v = spec.value !== undefined ? spec.value : spec;
+
+  if (t && transforms[t]) {
+    return transforms[t](v, parsedValue);
+  }
+
+  // fallback razonable
+  if (typeof v === "string" && isHexAddress(v)) return { kind: "address", value: v };
+  if (Array.isArray(v)) return { kind: "list", value: v.map((x) => ({ kind: "text", value: String(x) })) };
+  if (v && typeof v === "object") return { kind: "json", value: v };
+  return { kind: "text", value: v != null ? String(v) : "" };
 }
 
 function renderTransformedValue(v) {
@@ -133,129 +156,100 @@ function renderTransformedValue(v) {
   );
 }
 
-function transformFallback(value) {
-  if (value == null) return { kind: "text", value: "" };
-  if (Array.isArray(value)) return { kind: "list", value: value.map(transformFallback) };
-  if (typeof value === "object") return { kind: "json", value };
-  if (isHexAddress(value)) return { kind: "address", value };
-  return { kind: "text", value: String(value) };
+function getFunctionAbi(abis, contractType, fnName) {
+  if (!abis || !contractType || !fnName) return null;
+  return abis?.[contractType]?.[fnName] || null;
 }
 
-function transformArg({ spec, parsed, transforms }) {
-  if (spec && typeof spec === "object" && !Array.isArray(spec) && spec.transform) {
-    const t = spec.transform;
-    const v = spec.value;
-    const fn = transforms?.[t];
-    if (fn) {
-      const tv = fn(v);
-      return { primary: tv, secondary: parsed };
-    }
-    return { primary: transformFallback(v), secondary: parsed };
-  }
-
-  if (parsed !== undefined) {
-    return { primary: transformFallback(parsed), secondary: undefined };
-  }
-
-  return { primary: transformFallback(spec), secondary: undefined };
+function cleanTypeLabel(t) {
+  if (!t) return null;
+  return String(t).trim().replace(/\s+/g, " ");
 }
 
-function getStepMethodName(step) {
-  return (
-    step?.method ||
-    step?.function ||
-    step?.functionName ||
-    step?.selector ||
-    step?.signature ||
-    step?.contractMethod ||
-    step?.contract_method ||
-    (step?.rawArgs && typeof step.rawArgs === "object"
-      ? step.rawArgs.method ||
-        step.rawArgs.function ||
-        step.rawArgs.fn ||
-        step.rawArgs.name ||
-        step.rawArgs.selector ||
-        step.rawArgs.signature
-      : null)
+function inferSignatureTypes({ abiInputs, argsSpec, parsedArgs }) {
+  const n = Math.max(
+    Array.isArray(abiInputs) ? abiInputs.length : 0,
+    Array.isArray(argsSpec) ? argsSpec.length : 0,
+    Array.isArray(parsedArgs) ? parsedArgs.length : 0
   );
-}
 
-function getStepAbi(txDetails, step) {
-  const contractType = step?.contract_type || step?.contractType || null;
-  const methodName = getStepMethodName(step);
-  if (!contractType || !methodName) return null;
-  return txDetails?.abis?.[contractType]?.[methodName] || null;
-}
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const spec = Array.isArray(argsSpec) ? argsSpec[i] : null;
+    const parsed = Array.isArray(parsedArgs) ? parsedArgs[i] : null;
+    const inp = Array.isArray(abiInputs) ? abiInputs[i] : null;
 
-function typeLabelFromSpecOrAbi({ spec, abiInput }) {
-  if (spec?.transform === "enum") {
-    const obj = spec.value;
-    if (obj && typeof obj === "object") {
-      return obj.enum || obj.name || "enum";
+    // Preferimos enum name si el spec lo trae (más humano que uint8)
+    if (spec && typeof spec === "object" && (spec.transform || spec.type) === "enum") {
+      const enumName = spec?.value?.enum || spec?.value?.name;
+      out.push(cleanTypeLabel(enumName || "enum"));
+      continue;
     }
-    return "enum";
-  }
-  if (spec?.transform === "address_key") return "address";
-  if (spec?.transform === "component_role") return "component_role";
-  if (spec?.transform === "role") return "role";
 
-  if (abiInput?.type) return String(abiInput.type);
-  return null;
+    if (spec && typeof spec === "object" && (spec.transform || spec.type) === "address_key") {
+      out.push("address");
+      continue;
+    }
+
+    const abiType = cleanTypeLabel(inp?.type);
+    if (abiType) {
+      out.push(abiType);
+      continue;
+    }
+
+    if (typeof parsed === "string" && isHexAddress(parsed)) {
+      out.push("address");
+      continue;
+    }
+
+    // fallback mínimo
+    out.push(null);
+  }
+
+  return out.filter(Boolean);
 }
 
-function buildMethodSignature({ methodName, specs, abi }) {
+function formatMethodSignature(methodName, types) {
   if (!methodName) return null;
-
-  const abiInputs = Array.isArray(abi?.inputs) ? abi.inputs : null;
-
-  const count = Math.max(specs?.length || 0, abiInputs?.length || 0);
-  if (!count) return `${methodName}()`;
-
-  const types = Array.from({ length: count }).map((_, i) => {
-    const spec = specs?.[i];
-    const abiInput = abiInputs?.[i];
-    return typeLabelFromSpecOrAbi({ spec, abiInput }) || "unknown";
-  });
-
-  return `${methodName}(${types.join(", ")})`;
+  const t = Array.isArray(types) ? types.map(cleanTypeLabel).filter(Boolean) : [];
+  return `${methodName}(${t.join(", ")})`;
 }
 
-function buildArgRows({ step, txDetails }) {
-  const specs = Array.isArray(step?.arguments) ? step.arguments : null;
-  const parsed = Array.isArray(step?.parsedArguments) ? step.parsedArguments : null;
-
-  const abi = getStepAbi(txDetails, step);
-  const abiInputs = Array.isArray(abi?.inputs) ? abi.inputs : null;
-
-  const count = Math.max(specs?.length || 0, parsed?.length || 0, abiInputs?.length || 0);
-
-  return Array.from({ length: count }).map((_, i) => {
-    const spec = specs?.[i];
-    const parsedValue = parsed?.[i];
-
-    const abiInput = abiInputs?.[i] || null;
-    const name = abiInput?.name || spec?.name || spec?.argName || null;
-
-    const type = typeLabelFromSpecOrAbi({ spec, abiInput });
-
-    return {
-      index: i,
-      name,
-      type,
-      spec,
-      parsed: parsedValue,
-    };
-  });
-}
-
-function renderSecondaryParsed({ secondary }) {
-  if (secondary === undefined || secondary === null) return null;
-  const asText = typeof secondary === "string" ? secondary : safeJsonStringify(secondary, 0);
-  return (
-    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1, fontFamily: "monospace" }}>
-      ({asText})
-    </Typography>
+function buildArgumentRows({ abiInputs, argsSpec, parsedArgs, transforms }) {
+  const n = Math.max(
+    Array.isArray(abiInputs) ? abiInputs.length : 0,
+    Array.isArray(argsSpec) ? argsSpec.length : 0,
+    Array.isArray(parsedArgs) ? parsedArgs.length : 0
   );
+
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const inp = Array.isArray(abiInputs) ? abiInputs[i] : null;
+    const spec = Array.isArray(argsSpec) ? argsSpec[i] : null;
+    const parsed = Array.isArray(parsedArgs) ? parsedArgs[i] : null;
+
+    const name = (inp?.name && String(inp.name).trim()) || (spec?.name && String(spec.name).trim()) || `arg${i}`;
+    const type =
+      cleanTypeLabel(inp?.type) ||
+      cleanTypeLabel(spec?.type) ||
+      (spec?.transform ? cleanTypeLabel(spec.transform) : null);
+
+    // Preferimos el spec porque tiene info humana (enum keys, address_key, etc.)
+    let tv = null;
+    if (spec && typeof spec === "object") {
+      tv = transformArgumentSpec(spec, transforms, parsed);
+    } else if (parsed !== null && parsed !== undefined) {
+      // parsed raw
+      if (typeof parsed === "string" && isHexAddress(parsed)) tv = { kind: "address", value: parsed };
+      else tv = { kind: "text", value: String(parsed) };
+    } else if (spec != null) {
+      tv = { kind: "text", value: String(spec) };
+    }
+
+    rows.push({ key: `${i}-${name}`, name, type, tv });
+  }
+
+  return rows;
 }
 
 function buildSteps(txDetails) {
@@ -304,6 +298,7 @@ function buildSteps(txDetails) {
 
   const summary = txDetails.summary || null;
   const description = txDetails.description || null;
+
   const title = summary || description || "Transaction";
 
   const to = txDetails.to || txDetails.target || null;
@@ -325,14 +320,30 @@ function buildSteps(txDetails) {
   ];
 }
 
-function StepItem({ index, step, addressBook, addresses, txDetails }) {
+function StepItem({ index, step, addressBook, addresses, abis }) {
   const title = step.title || step.name || step.action || step.description || `Step ${index + 1}`;
-
   const to = step.to || step.recipient || step.target || null;
-  const displayName = to && addressBook ? addressBook[to] : undefined;
   const value = step.value ?? step.amount ?? null;
   const token = step.token || step.tokenSymbol || step.asset || null;
   const summary = step.summary || null;
+  const displayName = to && addressBook ? addressBook[to] : undefined;
+
+  const methodName =
+    step.method ||
+    step.function ||
+    step.functionName ||
+    step.selector ||
+    step.signature ||
+    step.contractMethod ||
+    step.contract_method ||
+    (step.rawArgs && typeof step.rawArgs === "object"
+      ? step.rawArgs.method ||
+        step.rawArgs.function ||
+        step.rawArgs.fn ||
+        step.rawArgs.name ||
+        step.rawArgs.selector ||
+        step.rawArgs.signature
+      : null);
 
   const contractAddressKey = step.contract_address_key || step.contractAddressKey || null;
   const contractType = step.contract_type || step.contractType || null;
@@ -343,28 +354,34 @@ function StepItem({ index, step, addressBook, addresses, txDetails }) {
   const resolvedContractName =
     resolvedContractAddress && addressBook ? addressBook[resolvedContractAddress] : undefined;
 
-  const methodName = getStepMethodName(step);
+  const argsSpec = Array.isArray(step.arguments) ? step.arguments : null;
+  const parsedArgs = Array.isArray(step.parsedArguments)
+    ? step.parsedArguments
+    : Array.isArray(step.parsed_args)
+    ? step.parsed_args
+    : null;
+
+  const fnAbi = getFunctionAbi(abis, contractType, methodName);
+  const abiInputs = Array.isArray(fnAbi?.inputs) ? fnAbi.inputs : [];
 
   const transforms = React.useMemo(
     () => buildChangesetTransforms({ addresses, addressBook }),
     [addresses, addressBook]
   );
 
-  const argRows = React.useMemo(() => buildArgRows({ step, txDetails }), [step, txDetails]);
+  const signatureTypes = inferSignatureTypes({ abiInputs, argsSpec, parsedArgs });
+  const signature = methodName ? formatMethodSignature(methodName, signatureTypes) : null;
 
-  const signature = React.useMemo(() => {
-    const specs = Array.isArray(step?.arguments) ? step.arguments : null;
-    const abi = getStepAbi(txDetails, step);
-    return buildMethodSignature({ methodName, specs, abi });
-  }, [methodName, step, txDetails]);
+  const rows = buildArgumentRows({ abiInputs, argsSpec, parsedArgs, transforms });
 
-  const hasAnyArgs = argRows.some((r) => r.spec !== undefined || r.parsed !== undefined) && argRows.length > 0;
+  // Deja de mostrar "unknown": si no hay tipos, simplemente mostramos method()
+  const signatureClean = signature && /\(\s*\)/.test(signature) ? `${methodName}()` : signature;
 
   return (
     <Box
       sx={{
         mt: 0.5,
-        p: 1,
+        p: 1.25,
         borderRadius: 1,
         border: (theme) => `1px solid ${theme.palette.divider}`,
         backgroundColor: "rgba(255,255,255,0.02)",
@@ -384,7 +401,7 @@ function StepItem({ index, step, addressBook, addresses, txDetails }) {
             fontWeight: 600,
             color: "primary.main",
             flexShrink: 0,
-            mt: 0.25,
+            mt: 0.15,
           }}
         >
           {index + 1}
@@ -401,7 +418,7 @@ function StepItem({ index, step, addressBook, addresses, txDetails }) {
             </Typography>
           )}
 
-          <Stack spacing={0.25}>
+          <Stack spacing={0.35}>
             {to && (
               <Typography variant="caption" color="text.secondary">
                 To: <Address address={to} displayName={displayName} />
@@ -424,11 +441,11 @@ function StepItem({ index, step, addressBook, addresses, txDetails }) {
               </Typography>
             )}
 
-            {signature && (
+            {signatureClean && (
               <Typography variant="caption" color="text.secondary">
                 Method:{" "}
                 <Typography component="span" variant="caption" sx={{ fontFamily: "monospace" }}>
-                  {signature}
+                  {signatureClean}
                 </Typography>
               </Typography>
             )}
@@ -443,71 +460,41 @@ function StepItem({ index, step, addressBook, addresses, txDetails }) {
               </Typography>
             )}
 
-            {hasAnyArgs && (
+            {rows.length > 0 && (
               <Box sx={{ mt: 0.5 }}>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.25 }}>
                   Arguments:
                 </Typography>
 
-                <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-                  {argRows.map((row) => {
-                    // Build a nice label:
-                    const label = row.name
-                      ? `${row.name}${row.type ? ` (${row.type})` : ""}`
-                      : row.type
-                      ? row.type
-                      : `arg${row.index}`;
-
-                    const { primary, secondary } = transformArg({
-                      spec: row.spec,
-                      parsed: row.parsed,
-                      transforms,
-                    });
-
-                    const showSecondary =
-                      secondary !== undefined && (row.spec?.transform === "enum" || primary.kind !== "address");
-
-                    return (
-                      <Stack
-                        key={`${row.index}-${label}`}
-                        direction="row"
-                        spacing={1}
-                        alignItems="flex-start"
-                        sx={{ flexWrap: "wrap" }}
+                <Stack spacing={0.5} sx={{ mt: 0.25 }}>
+                  {rows.map((r) => (
+                    <Box
+                      key={r.key}
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: "minmax(90px, 150px) 1fr",
+                        columnGap: 1.25,
+                        alignItems: "start",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ fontFamily: "monospace", whiteSpace: "nowrap" }}
                       >
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ minWidth: 170, fontFamily: "monospace" }}
-                        >
-                          {label}:
-                        </Typography>
-                        <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", flexWrap: "wrap" }}>
-                          {renderTransformedValue(primary)}
-                          {showSecondary && renderSecondaryParsed({ secondary })}
-                        </Box>
-                      </Stack>
-                    );
-                  })}
-                </Stack>
-              </Box>
-            )}
+                        {r.name}
+                        {r.type ? (
+                          <Typography component="span" variant="caption" sx={{ opacity: 0.75 }}>
+                            {` (${r.type})`}
+                          </Typography>
+                        ) : null}
+                        :
+                      </Typography>
 
-            {!hasAnyArgs && step.rawArgs != null && (
-              <Box
-                component="pre"
-                sx={{
-                  mt: 0.75,
-                  fontSize: "0.7rem",
-                  fontFamily: "monospace",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  backgroundColor: "rgba(255,255,255,0.02)",
-                  borderRadius: 1,
-                  p: 1,
-                }}
-              >
-                {typeof step.rawArgs === "string" ? step.rawArgs : safeJsonStringify(step.rawArgs, 2)}
+                      <Box sx={{ minWidth: 0 }}>{renderTransformedValue(r.tv)}</Box>
+                    </Box>
+                  ))}
+                </Stack>
               </Box>
             )}
           </Stack>
@@ -554,7 +541,14 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
 
   const confirmationsCount = transaction?.confirmations?.length ?? 0;
   const confirmationsRequired = transaction?.confirmationsRequired ?? null;
+
   const signers = Array.isArray(transaction?.confirmations) ? transaction.confirmations : [];
+
+  // opcional: link al YAML original (si viene commit_ref + original_path)
+  const commitRef = txDetails?.commit_ref;
+  const originalPath = txDetails?.original_path;
+  const changesetSourceUrl =
+    commitRef && originalPath ? `https://github.com/ensuro/deploy-scripts/blob/${commitRef}/${originalPath}` : null;
 
   return (
     <Paper variant="outlined" sx={{ p: 2, mx: "auto" }}>
@@ -650,24 +644,6 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
             Contract target: <Address address={contractTarget} displayName={contractTargetName} />
           </Typography>
         )}
-
-        {showTxMeta && (
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              Signers:
-            </Typography>
-            <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap" }}>
-              {signers.length === 0 && (
-                <Typography variant="caption" color="text.secondary">
-                  No signatures yet
-                </Typography>
-              )}
-              {signers.map((signer) => (
-                <Address key={signer.owner} address={signer.owner} displayName={addressBook[signer.owner]} />
-              ))}
-            </Stack>
-          </Box>
-        )}
       </Stack>
 
       <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 0.6, fontWeight: 600 }}>
@@ -683,7 +659,7 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
               step={step}
               addressBook={addressBook}
               addresses={txDetails?.addresses}
-              txDetails={txDetails}
+              abis={txDetails?.abis}
             />
           ))}
         </Stack>
@@ -693,8 +669,26 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
         </Typography>
       )}
 
+      {showTxMeta && (
+        <Box sx={{ mt: 1.25 }}>
+          <Typography variant="caption" color="text.secondary">
+            Signers:
+          </Typography>
+          <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap" }}>
+            {signers.length === 0 && (
+              <Typography variant="caption" color="text.secondary">
+                No signatures yet
+              </Typography>
+            )}
+            {signers.map((signer) => (
+              <Address key={signer.owner} address={signer.owner} displayName={addressBook[signer.owner]} />
+            ))}
+          </Stack>
+        </Box>
+      )}
+
       <Stack direction="row" spacing={1} sx={{ mt: 1.5, mb: 1 }} alignItems="center" justifyContent="space-between">
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+        <Stack direction="row" spacing={1}>
           {safeUrl && (
             <Button
               size="small"
@@ -709,7 +703,21 @@ function DetailsPanel({ txDetails, transaction, safeTxHash, chainId, safeAddress
               Open in Safe web app
             </Button>
           )}
-        </Box>
+
+          {changesetSourceUrl && (
+            <Button
+              size="small"
+              variant="outlined"
+              color="inherit"
+              component={Link}
+              href={changesetSourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open YAML (GitHub)
+            </Button>
+          )}
+        </Stack>
 
         <Stack direction="row" spacing={1}>
           <Button size="small" variant={showYaml ? "contained" : "outlined"} onClick={() => setShowYaml((v) => !v)}>
@@ -775,6 +783,7 @@ function TransactionCard({
   const txKey = hasTransaction
     ? transaction.safeTxHash || transaction.transactionHash || transaction.txHash
     : safeTxHashProp;
+
   const shouldFetchDetails = !txDetailsProp && hasTransaction && !!transaction.safeTxHash;
 
   const txDetailsResponse = useQuery({
