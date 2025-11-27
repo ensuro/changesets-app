@@ -139,24 +139,23 @@ function renderTransformedValue(v) {
     );
   }
 
+  const commonSx = {
+    fontFamily: "monospace",
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    display: "block",
+  };
+
   if (v.kind === "json") {
     return (
-      <Typography
-        component="span"
-        variant="caption"
-        sx={{ fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-      >
+      <Typography component="div" variant="caption" sx={commonSx}>
         {safeJsonStringify(v.value, 2)}
       </Typography>
     );
   }
 
   return (
-    <Typography
-      component="span"
-      variant="caption"
-      sx={{ fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-    >
+    <Typography component="div" variant="caption" sx={commonSx}>
       {String(v.value)}
     </Typography>
   );
@@ -489,8 +488,9 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
                       key={r.key}
                       sx={{
                         display: "grid",
-                        gridTemplateColumns: "320px 1fr",
-                        columnGap: 2,
+                        gridTemplateColumns: { xs: "1fr", sm: "minmax(120px, 210px) 1fr" },
+                        columnGap: { xs: 0, sm: 2 },
+                        rowGap: { xs: 0.25, sm: 0 },
                         alignItems: "start",
                         minWidth: 0,
                       }}
@@ -501,9 +501,10 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
                           fontFamily: "monospace",
                           fontSize: "0.75rem",
                           color: "text.secondary",
-                          whiteSpace: "nowrap",
+                          whiteSpace: { xs: "normal", sm: "nowrap" },
                           overflow: "hidden",
                           textOverflow: "ellipsis",
+                          minWidth: 0,
                         }}
                         title={`${r.name}${r.type ? ` (${r.type})` : ""}`}
                       >
@@ -514,7 +515,9 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
                         <Box component="span">:</Box>
                       </Typography>
 
-                      <Box sx={{ minWidth: 0 }}>{renderTransformedValue(r.tv)}</Box>
+                      <Box sx={{ minWidth: 0, display: "flex", justifyContent: "flex-start" }}>
+                        {renderTransformedValue(r.tv)}
+                      </Box>
                     </Box>
                   ))}
                 </Box>
