@@ -482,42 +482,65 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
                   Arguments:
                 </Typography>
 
-                <Box sx={{ display: "grid" }}>
-                  {rows.map((r) => (
-                    <Box
-                      key={r.key}
-                      sx={{
-                        display: "grid",
-                        gridTemplateColumns: { sm: "minmax(0, max-content) minmax(0, 1fr)" },
-                        alignItems: "start",
-                        minWidth: 0,
-                      }}
-                    >
-                      <Typography
-                        variant="body2"
+                <Box sx={{ display: "grid", rowGap: 0.6 }}>
+                  {rows.map((r) => {
+                    const kind = r.tv?.kind;
+                    const isMultiline = kind === "json" || kind === "list";
+
+                    return (
+                      <Box
+                        key={r.key}
                         sx={{
-                          fontFamily: "monospace",
-                          fontSize: "0.75rem",
-                          color: "text.secondary",
-                          whiteSpace: { xs: "normal", sm: "nowrap" },
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
+                          display: "grid",
+                          gridTemplateColumns: { sm: "minmax(0, max-content) minmax(0, 1fr)" },
+                          columnGap: 2,
+                          alignItems: isMultiline ? "start" : "center",
                           minWidth: 0,
                         }}
-                        title={`${r.name}${r.type ? ` (${r.type})` : ""}`}
                       >
-                        <Box component="span">{r.name} </Box>
-                        <Box component="span" sx={{ opacity: 0.7 }}>
-                          ({r.type || "raw"})
+                        <Box
+                          sx={{
+                            minWidth: 0,
+                            display: "flex",
+                            alignItems: isMultiline ? "start" : "center",
+                            pr: 0.25,
+                          }}
+                        >
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontFamily: "monospace",
+                              fontSize: "0.75rem",
+                              color: "text.secondary",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              lineHeight: 1.2,
+                            }}
+                            title={`${r.name}${r.type ? ` (${r.type})` : ""}`}
+                          >
+                            <Box component="span">{r.name}</Box>{" "}
+                            <Box component="span" sx={{ opacity: 0.7 }}>
+                              ({r.type || "raw"})
+                            </Box>
+                            <Box component="span">:</Box>
+                          </Typography>
                         </Box>
-                        <Box component="span">:</Box>
-                      </Typography>
 
-                      <Box sx={{ minWidth: 0, display: "flex", justifyContent: "flex-start" }}>
-                        {renderTransformedValue(r.tv)}
+                        <Box
+                          sx={{
+                            minWidth: 0,
+                            display: "flex",
+                            alignItems: isMultiline ? "start" : "center",
+                          }}
+                        >
+                          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", minWidth: 0 }}>
+                            {renderTransformedValue(r.tv)}
+                          </Box>
+                        </Box>
                       </Box>
-                    </Box>
-                  ))}
+                    );
+                  })}
                 </Box>
               </Box>
             )}
