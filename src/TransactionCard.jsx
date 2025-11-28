@@ -482,15 +482,13 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
                   Arguments:
                 </Typography>
 
-                <Box sx={{ display: "grid", rowGap: 0.6 }}>
+                <Box sx={{ display: "grid" }}>
                   {rows.map((r) => (
                     <Box
                       key={r.key}
                       sx={{
                         display: "grid",
                         gridTemplateColumns: { sm: "minmax(0, max-content) minmax(0, 1fr)" },
-                        columnGap: { xs: 0, sm: 2 },
-                        rowGap: { xs: 0.25, sm: 0 },
                         alignItems: "start",
                         minWidth: 0,
                       }}
