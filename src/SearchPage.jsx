@@ -3,26 +3,16 @@ import { Box, Stack, TextField, MenuItem, Button, Paper, Typography, Link } from
 import { useQuery } from "@tanstack/react-query";
 
 import { useSafe } from "./safe-ui";
-import { getTransactionDetailsByKey } from "./safe-api";
+import { chainPrefixFromId } from "./chain-utils";
+import { KEY_TRANSACTIONS, getChangesetAndSafeTxHashByKey, getSafeTransaction } from "./safe-api";
 import TransactionCard from "./TransactionCard";
 
 const KEY_SEARCH = "tx-search";
 
-function chainPrefixFromId(chainId) {
-  switch (Number(chainId)) {
-    case 1:
-      return "eth";
-    case 137:
-      return "matic";
-    case 42161:
-      return "arb1";
-    default:
-      return String(chainId);
-  }
-}
-
 export default function SearchPage() {
   const { chainId, safeAddress } = useSafe();
+  const safe = React.useMemo(() => ({ chainId, safeAddress }), [chainId, safeAddress]);
+
   const [mode, setMode] = React.useState("safeTxHash");
   const [searchText, setSearchText] = React.useState("");
   const [submittedQuery, setSubmittedQuery] = React.useState(null);
@@ -30,21 +20,21 @@ export default function SearchPage() {
   const chainPrefix = chainPrefixFromId(chainId);
   const hasSubmitted = !!submittedQuery?.text;
 
-  const query = useQuery({
+  const searchQuery = useQuery({
     queryKey: [KEY_SEARCH, submittedQuery?.mode, submittedQuery?.text, chainId, safeAddress],
     enabled: hasSubmitted,
     queryFn: async () => {
       if (!submittedQuery) return null;
-      const changeset = await getTransactionDetailsByKey(
-        { chainId, safeAddress },
-        { type: submittedQuery.mode, key: submittedQuery.text.trim() }
-      );
-      const safeTxHash =
-        submittedQuery.mode === "safeTxHash"
-          ? submittedQuery.text.trim()
-          : changeset?.safeTxHash || changeset?.safe_tx_hash || submittedQuery.text.trim();
-      return { safeTxHash, changeset };
+      return getChangesetAndSafeTxHashByKey(safe, { type: submittedQuery.mode, key: submittedQuery.text });
     },
+  });
+
+  const safeTxHash = searchQuery.data?.safeTxHash || null;
+
+  const txMetaQuery = useQuery({
+    queryKey: [KEY_TRANSACTIONS, "search-meta", chainId, safeAddress, safeTxHash],
+    enabled: !!safeTxHash,
+    queryFn: async () => getSafeTransaction(safe, safeTxHash),
   });
 
   function onSubmit(e) {
@@ -91,11 +81,13 @@ export default function SearchPage() {
         </Box>
       </Paper>
 
-      {hasSubmitted && query.fetchStatus === "fetching" && <Typography>Searching…</Typography>}
+      {hasSubmitted && (searchQuery.fetchStatus === "fetching" || txMetaQuery.fetchStatus === "fetching") && (
+        <Typography>Searching…</Typography>
+      )}
 
-      {hasSubmitted && query.isError && (
+      {hasSubmitted && (searchQuery.isError || txMetaQuery.isError) && (
         <Paper variant="outlined" sx={{ p: 2 }}>
-          {query.error?.status === 404 ? (
+          {searchQuery.error?.status === 404 ? (
             <Typography color="text.secondary">
               No changeset found for transaction{" "}
               {submittedQuery?.text && (
@@ -109,13 +101,23 @@ export default function SearchPage() {
               )}
             </Typography>
           ) : (
-            <Typography color="error">Error: {String(query.error?.message || query.error)}</Typography>
+            <Typography color="error">
+              Error:{" "}
+              {String(
+                searchQuery.error?.message || txMetaQuery.error?.message || searchQuery.error || txMetaQuery.error
+              )}
+            </Typography>
           )}
         </Paper>
       )}
 
-      {hasSubmitted && query.isSuccess && query.data?.changeset && (
-        <TransactionCard txDetails={query.data.changeset} safeTxHash={query.data.safeTxHash} readOnly />
+      {hasSubmitted && searchQuery.isSuccess && searchQuery.data?.changeset && (
+        <TransactionCard
+          transaction={txMetaQuery.data || undefined}
+          txDetails={searchQuery.data.changeset}
+          safeTxHash={searchQuery.data.safeTxHash}
+          readOnly
+        />
       )}
     </Stack>
   );
