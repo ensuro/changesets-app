@@ -44,6 +44,85 @@ function safeJsonStringify(v, space = 2) {
     return String(v);
   }
 }
+function asBigIntMaybe(v) {
+  if (v == null) return null;
+  if (typeof v === "bigint") return v;
+
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return BigInt(Math.trunc(v));
+  }
+
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (!s) return null;
+    try {
+      if (s.startsWith("0x") || s.startsWith("0X")) return BigInt(s);
+      if (/^[0-9]+$/.test(s)) return BigInt(s);
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+function formatUnitsDecimal(raw, decimals) {
+  const bi = asBigIntMaybe(raw);
+  const d = Number(decimals);
+  if (bi == null || !Number.isFinite(d) || d < 0) return null;
+
+  const neg = bi < 0n;
+  const abs = neg ? -bi : bi;
+
+  const s = abs.toString();
+  const whole = s.length > d ? s.slice(0, -d) : "0";
+  const fracRaw = s.length > d ? s.slice(-d) : s.padStart(d, "0");
+  const frac = fracRaw.replace(/0+$/, "");
+
+  return `${neg ? "-" : ""}${whole}${frac ? "." + frac : ""}`;
+}
+
+function inferDecimalsFromStep(step) {
+  return (
+    step?.decimals ?? step?.tokenDecimals ?? step?.token_decimals ?? step?.assetDecimals ?? step?.asset_decimals ?? null
+  );
+}
+
+function renderAmountWithRaw({ value, token, step }) {
+  const isObj = value && typeof value === "object" && !Array.isArray(value);
+
+  const raw = isObj ? value.raw ?? value.value ?? value.amount ?? null : value;
+  const rawStr = raw != null ? String(raw) : "";
+
+  const decimals = isObj
+    ? value.decimals ?? value.tokenDecimals ?? value.token_decimals ?? inferDecimalsFromStep(step)
+    : inferDecimalsFromStep(step);
+
+  const pretty =
+    (isObj ? value.formatted ?? value.pretty ?? null : null) ||
+    (decimals != null ? formatUnitsDecimal(raw, decimals) : null);
+
+  if (pretty) {
+    return (
+      <>
+        {pretty}
+        {token ? ` ${token}` : ""}
+        {rawStr && (
+          <Box component="span" sx={{ opacity: 0.7 }}>
+            {` (raw: ${rawStr})`}
+          </Box>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {rawStr || "-"}
+      {token ? ` ${token}` : ""}
+    </>
+  );
+}
 
 function cleanTypeLabel(t) {
   if (!t) return null;
@@ -470,8 +549,7 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
               <Typography variant="caption" color="text.secondary">
                 Amount:{" "}
                 <Typography component="span" variant="caption" sx={{ fontFamily: "monospace" }}>
-                  {String(value)}
-                  {token ? ` ${token}` : ""}
+                  {renderAmountWithRaw({ value, token, step })}
                 </Typography>
               </Typography>
             )}
