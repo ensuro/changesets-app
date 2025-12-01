@@ -3,15 +3,15 @@ import { Box, Stack, TextField, MenuItem, Button, Paper, Typography, Link } from
 import { useQuery } from "@tanstack/react-query";
 
 import { useSafe } from "./safe-ui";
+import { getChangesetAndSafeTxHashByKey, getSafeTransaction } from "./safe-api";
 import { chainPrefixFromId } from "./chain-utils";
-import { KEY_TRANSACTIONS, getChangesetAndSafeTxHashByKey, getSafeTransaction } from "./safe-api";
 import TransactionCard from "./TransactionCard";
 
 const KEY_SEARCH = "tx-search";
 
 export default function SearchPage() {
-  const { chainId, safeAddress } = useSafe();
-  const safe = React.useMemo(() => ({ chainId, safeAddress }), [chainId, safeAddress]);
+  const safe = useSafe();
+  const { chainId, safeAddress } = safe;
 
   const [mode, setMode] = React.useState("safeTxHash");
   const [searchText, setSearchText] = React.useState("");
@@ -20,21 +20,24 @@ export default function SearchPage() {
   const chainPrefix = chainPrefixFromId(chainId);
   const hasSubmitted = !!submittedQuery?.text;
 
-  const searchQuery = useQuery({
+  const query = useQuery({
     queryKey: [KEY_SEARCH, submittedQuery?.mode, submittedQuery?.text, chainId, safeAddress],
     enabled: hasSubmitted,
     queryFn: async () => {
       if (!submittedQuery) return null;
-      return getChangesetAndSafeTxHashByKey(safe, { type: submittedQuery.mode, key: submittedQuery.text });
+
+      const base = await getChangesetAndSafeTxHashByKey(safe, {
+        type: submittedQuery.mode,
+        key: submittedQuery.text,
+      });
+
+      if (!base?.safeTxHash) return null;
+
+      const txMeta = await getSafeTransaction(safe, base.safeTxHash);
+
+      return { ...base, txMeta };
     },
-  });
-
-  const safeTxHash = searchQuery.data?.safeTxHash || null;
-
-  const txMetaQuery = useQuery({
-    queryKey: [KEY_TRANSACTIONS, "search-meta", chainId, safeAddress, safeTxHash],
-    enabled: !!safeTxHash,
-    queryFn: async () => getSafeTransaction(safe, safeTxHash),
+    refetchOnWindowFocus: false,
   });
 
   function onSubmit(e) {
@@ -48,6 +51,7 @@ export default function SearchPage() {
     ? `https://app.safe.global/transactions/tx?safe=${chainPrefix}:${safeAddress}`
     : null;
 
+  const isSearching = hasSubmitted && query.fetchStatus === "fetching";
   return (
     <Stack spacing={2}>
       <Paper variant="outlined" sx={{ p: 2 }}>
@@ -81,13 +85,11 @@ export default function SearchPage() {
         </Box>
       </Paper>
 
-      {hasSubmitted && (searchQuery.fetchStatus === "fetching" || txMetaQuery.fetchStatus === "fetching") && (
-        <Typography>Searching…</Typography>
-      )}
+      {isSearching && <Typography>Searching…</Typography>}
 
-      {hasSubmitted && (searchQuery.isError || txMetaQuery.isError) && (
+      {hasSubmitted && query.isError && (
         <Paper variant="outlined" sx={{ p: 2 }}>
-          {searchQuery.error?.status === 404 ? (
+          {query.error?.status === 404 ? (
             <Typography color="text.secondary">
               No changeset found for transaction{" "}
               {submittedQuery?.text && (
@@ -101,21 +103,17 @@ export default function SearchPage() {
               )}
             </Typography>
           ) : (
-            <Typography color="error">
-              Error:{" "}
-              {String(
-                searchQuery.error?.message || txMetaQuery.error?.message || searchQuery.error || txMetaQuery.error
-              )}
-            </Typography>
+            <Typography color="error">Error: {String(query.error?.message || query.error)}</Typography>
           )}
         </Paper>
       )}
 
-      {hasSubmitted && searchQuery.isSuccess && searchQuery.data?.changeset && (
+      {!isSearching && hasSubmitted && query.isSuccess && query.data?.changeset && (
         <TransactionCard
-          transaction={txMetaQuery.data || undefined}
-          txDetails={searchQuery.data.changeset}
-          safeTxHash={searchQuery.data.safeTxHash}
+          key={query.data.safeTxHash}
+          transaction={query.data.txMeta}
+          txDetails={query.data.changeset}
+          safeTxHash={query.data.safeTxHash}
           readOnly
         />
       )}

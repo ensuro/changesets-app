@@ -112,7 +112,13 @@ export async function resolveSafeTxHashFromTxHash(safe, txHash) {
 
 export async function getSafeTransaction(safe, safeTxHash) {
   const apiKit = getApi(safe.chainId);
-  return apiKit.getTransaction(safeTxHash);
+  try {
+    return await apiKit.getTransaction(safeTxHash);
+  } catch (e) {
+    const err = new Error(`SafeTxService error fetching txMeta for ${safeTxHash}: ${e?.message || e}`);
+    err.cause = e;
+    throw err;
+  }
 }
 
 export async function getTransactionDetailsByKey(safe, { type, key }) {
