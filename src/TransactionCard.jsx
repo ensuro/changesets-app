@@ -16,7 +16,6 @@ import {
   Button,
   Collapse,
   Link as MuiLink,
-  IconButton,
 } from "@mui/material";
 
 import { useQuery } from "@tanstack/react-query";
@@ -827,8 +826,6 @@ function TransactionCard({
   const { curAccount } = useWallet();
   const { owners, chainId, safeAddress } = useSafe();
 
-  const [expanded, setExpanded] = React.useState(false);
-
   const txKey = hasTransaction
     ? transaction.safeTxHash || transaction.transactionHash || transaction.txHash
     : safeTxHashProp;
@@ -864,12 +861,6 @@ function TransactionCard({
     },
     [onConfirm]
   );
-
-  const handleToggleExpand = React.useCallback((e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setExpanded((v) => !v);
-  }, []);
 
   if (!hasTransaction || variant === "panel") {
     if (!txDetails) return null;
@@ -950,51 +941,8 @@ function TransactionCard({
   const signEnabled = !alreadySigned && isOwner;
 
   return (
-    <Accordion expanded={expanded} onChange={() => {}} elevation={2}>
-      <AccordionSummary
-        onClick={(e) => {
-          if (e.target.closest("[data-accordion-toggle]")) return;
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        expandIcon={
-          <Box
-            data-accordion-toggle
-            onClick={handleToggleExpand}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-            }}
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              p: 0.5,
-              borderRadius: 1,
-              cursor: "pointer",
-              userSelect: "none",
-            }}
-            aria-label={expanded ? "Collapse" : "Expand"}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                setExpanded((v) => !v);
-              }
-            }}
-          >
-            <ExpandMoreIcon
-              sx={{
-                transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 150ms ease",
-              }}
-            />
-          </Box>
-        }
-        aria-controls="panel1a-content"
-        id="panel1a-header"
-      >
+    <Accordion elevation={2}>
+      <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="panel1a-content" id="panel1a-header">
         <Stack direction="row" spacing={2} sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography
@@ -1022,7 +970,7 @@ function TransactionCard({
           </Box>
 
           {!readOnly && (
-            <Box sx={{ ml: 1 }} onClick={(e) => e.stopPropagation()}>
+            <Box sx={{ ml: 1 }}>
               <WalletActionButton
                 onClick={handleApproveClick}
                 disabled={!signEnabled}
