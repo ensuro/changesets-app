@@ -16,6 +16,7 @@ import {
   Button,
   Collapse,
   Link as MuiLink,
+  IconButton,
 } from "@mui/material";
 
 import { useQuery } from "@tanstack/react-query";
@@ -826,6 +827,8 @@ function TransactionCard({
   const { curAccount } = useWallet();
   const { owners, chainId, safeAddress } = useSafe();
 
+  const [expanded, setExpanded] = React.useState(false);
+
   const txKey = hasTransaction
     ? transaction.safeTxHash || transaction.transactionHash || transaction.txHash
     : safeTxHashProp;
@@ -941,8 +944,24 @@ function TransactionCard({
   const signEnabled = !alreadySigned && isOwner;
 
   return (
-    <Accordion elevation={2}>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />} aria-controls="panel1a-content" id="panel1a-header">
+    <Accordion expanded={expanded} onChange={() => {}} elevation={2}>
+      <AccordionSummary
+        expandIcon={
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              setExpanded((v) => !v);
+            }}
+            aria-label={expanded ? "Collapse" : "Expand"}
+          >
+            <ExpandMoreIcon />
+          </IconButton>
+        }
+        aria-controls="panel1a-content"
+        id="panel1a-header"
+      >
         <Stack direction="row" spacing={2} sx={{ alignItems: "center", flex: 1, minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography
