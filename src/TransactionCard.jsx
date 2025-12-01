@@ -865,6 +865,12 @@ function TransactionCard({
     [onConfirm]
   );
 
+  const handleToggleExpand = React.useCallback((e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setExpanded((v) => !v);
+  }, []);
+
   if (!hasTransaction || variant === "panel") {
     if (!txDetails) return null;
     return (
@@ -946,18 +952,45 @@ function TransactionCard({
   return (
     <Accordion expanded={expanded} onChange={() => {}} elevation={2}>
       <AccordionSummary
+        onClick={(e) => {
+          if (e.target.closest("[data-accordion-toggle]")) return;
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         expandIcon={
-          <IconButton
-            size="small"
-            onClick={(e) => {
+          <Box
+            data-accordion-toggle
+            onClick={handleToggleExpand}
+            onMouseDown={(e) => {
               e.stopPropagation();
-              e.preventDefault();
-              setExpanded((v) => !v);
+            }}
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              p: 0.5,
+              borderRadius: 1,
+              cursor: "pointer",
+              userSelect: "none",
             }}
             aria-label={expanded ? "Collapse" : "Expand"}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                setExpanded((v) => !v);
+              }
+            }}
           >
-            <ExpandMoreIcon />
-          </IconButton>
+            <ExpandMoreIcon
+              sx={{
+                transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 150ms ease",
+              }}
+            />
+          </Box>
         }
         aria-controls="panel1a-content"
         id="panel1a-header"
@@ -989,7 +1022,7 @@ function TransactionCard({
           </Box>
 
           {!readOnly && (
-            <Box sx={{ ml: 1 }}>
+            <Box sx={{ ml: 1 }} onClick={(e) => e.stopPropagation()}>
               <WalletActionButton
                 onClick={handleApproveClick}
                 disabled={!signEnabled}
