@@ -44,6 +44,7 @@ function safeJsonStringify(v, space = 2) {
     return String(v);
   }
 }
+
 function asBigIntMaybe(v) {
   if (v == null) return null;
   if (typeof v === "bigint") return v;
@@ -308,6 +309,19 @@ function defaultNameFromSpec(spec, i) {
   return `arg${i}`;
 }
 
+function isAmountArg(name, type, spec) {
+  const n = String(name || "").toLowerCase();
+  const t = String(type || "").toLowerCase();
+  const st = String(spec?.transform || spec?.type || "").toLowerCase();
+
+  if (n === "amount" || n.endsWith("_amount")) return true;
+  if (t === "amount" || st === "amount") return true;
+
+  if ((t.includes("uint") || t.includes("int")) && n.includes("amount")) return true;
+
+  return false;
+}
+
 function buildArgumentRows({ abiInputs, argsSpec, parsedArgs, transforms }) {
   const n = Math.max(
     Array.isArray(abiInputs) ? abiInputs.length : 0,
@@ -343,7 +357,17 @@ function buildArgumentRows({ abiInputs, argsSpec, parsedArgs, transforms }) {
       tv = { kind: "text", value: "" };
     }
 
-    rows.push({ key: `${i}-${name}`, name, type, tv });
+    const isAmount = isAmountArg(name, type, spec || {});
+    const amountValue =
+      parsed !== null && parsed !== undefined
+        ? parsed
+        : spec && typeof spec === "object" && spec.value !== undefined
+        ? spec.value
+        : tv?.kind === "text"
+        ? tv.value
+        : null;
+
+    rows.push({ key: `${i}-${name}`, name, type, tv, isAmount, amountValue });
   }
 
   return rows;
@@ -613,7 +637,22 @@ function StepItem({ index, step, addressBook, addresses, abis }) {
                           }}
                         >
                           <Box component="span" sx={{ display: "inline-flex", alignItems: "center", minWidth: 0 }}>
-                            {renderTransformedValue(r.tv)}
+                            {r.isAmount ? (
+                              <Typography
+                                component="div"
+                                variant="caption"
+                                sx={{
+                                  fontFamily: "monospace",
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
+                                  display: "block",
+                                }}
+                              >
+                                {renderAmountWithRaw({ value: r.amountValue, token, step })}
+                              </Typography>
+                            ) : (
+                              renderTransformedValue(r.tv)
+                            )}
                           </Box>
                         </Box>
                       </Box>
