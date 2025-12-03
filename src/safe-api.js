@@ -110,10 +110,35 @@ export async function resolveSafeTxHashFromTxHash(safe, txHash) {
   return safeTxHash;
 }
 
+export async function getSafeTransaction(safe, safeTxHash) {
+  const apiKit = getApi(safe.chainId);
+  try {
+    return await apiKit.getTransaction(safeTxHash);
+  } catch (e) {
+    const err = new Error(`SafeTxService error fetching txMeta for ${safeTxHash}: ${e?.message || e}`);
+    err.cause = e;
+    throw err;
+  }
+}
+
 export async function getTransactionDetailsByKey(safe, { type, key }) {
   if (type === "txHash") {
     const safeTxHash = await resolveSafeTxHashFromTxHash(safe, key);
     return getTransactionDetails(safeTxHash);
   }
   return getTransactionDetails(key);
+}
+export async function getChangesetAndSafeTxHashByKey(safe, { type, key }) {
+  const k = String(key || "").trim();
+  if (!k) return null;
+
+  if (type === "txHash") {
+    const safeTxHash = await resolveSafeTxHashFromTxHash(safe, k);
+    const changeset = await getTransactionDetails(safeTxHash);
+    return { safeTxHash, changeset };
+  }
+
+  const safeTxHash = k;
+  const changeset = await getTransactionDetails(safeTxHash);
+  return { safeTxHash, changeset };
 }
