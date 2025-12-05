@@ -1,18 +1,26 @@
 import * as React from "react";
 import { Box, Stack, TextField, MenuItem, Button, Paper, Typography, Link } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
-
 import { useSafe } from "./safe-ui";
-import { getChangesetAndSafeTxHashByKey, getSafeTransaction } from "./safe-api";
-import { chainPrefixFromId } from "./chain-utils";
-import TransactionCard from "./TransactionCard";
+import { getTransactionDetailsByKey } from "./safe-api";
 
 const KEY_SEARCH = "tx-search";
 
-export default function SearchPage() {
-  const safe = useSafe();
-  const { chainId, safeAddress } = safe;
+function chainPrefixFromId(chainId) {
+  switch (Number(chainId)) {
+    case 1:
+      return "eth";
+    case 137:
+      return "matic";
+    case 42161:
+      return "arb1";
+    default:
+      return String(chainId);
+  }
+}
 
+export default function SearchPage() {
+  const { chainId, safeAddress } = useSafe();
   const [mode, setMode] = React.useState("safeTxHash");
   const [searchText, setSearchText] = React.useState("");
   const [submittedQuery, setSubmittedQuery] = React.useState(null);
@@ -25,19 +33,16 @@ export default function SearchPage() {
     enabled: hasSubmitted,
     queryFn: async () => {
       if (!submittedQuery) return null;
-
-      const base = await getChangesetAndSafeTxHashByKey(safe, {
-        type: submittedQuery.mode,
-        key: submittedQuery.text,
-      });
-
-      if (!base?.safeTxHash) return null;
-
-      const txMeta = await getSafeTransaction(safe, base.safeTxHash);
-
-      return { ...base, txMeta };
+      const changeset = await getTransactionDetailsByKey(
+        { chainId, safeAddress },
+        { type: submittedQuery.mode, key: submittedQuery.text.trim() }
+      );
+      const safeTxHash =
+        submittedQuery.mode === "safeTxHash"
+          ? submittedQuery.text.trim()
+          : changeset?.safeTxHash || changeset?.safe_tx_hash || submittedQuery.text.trim();
+      return { safeTxHash, changeset };
     },
-    refetchOnWindowFocus: false,
   });
 
   function onSubmit(e) {
@@ -51,7 +56,6 @@ export default function SearchPage() {
     ? `https://app.safe.global/transactions/tx?safe=${chainPrefix}:${safeAddress}`
     : null;
 
-  const isSearching = hasSubmitted && query.fetchStatus === "fetching";
   return (
     <Stack spacing={2}>
       <Paper variant="outlined" sx={{ p: 2 }}>
@@ -85,7 +89,7 @@ export default function SearchPage() {
         </Box>
       </Paper>
 
-      {isSearching && <Typography>Searching…</Typography>}
+      {hasSubmitted && query.fetchStatus === "fetching" && <Typography>Searching…</Typography>}
 
       {hasSubmitted && query.isError && (
         <Paper variant="outlined" sx={{ p: 2 }}>
@@ -108,14 +112,13 @@ export default function SearchPage() {
         </Paper>
       )}
 
-      {!isSearching && hasSubmitted && query.isSuccess && query.data?.changeset && (
-        <TransactionCard
-          key={query.data.safeTxHash}
-          transaction={query.data.txMeta}
-          txDetails={query.data.changeset}
-          safeTxHash={query.data.safeTxHash}
-          readOnly
-        />
+      {hasSubmitted && query.isSuccess && (
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Changeset for safeTxHash {query.data.safeTxHash}
+          </Typography>
+          <pre style={{ margin: 0, overflowX: "auto" }}>{JSON.stringify(query.data.changeset, null, 2)}</pre>
+        </Paper>
       )}
     </Stack>
   );
